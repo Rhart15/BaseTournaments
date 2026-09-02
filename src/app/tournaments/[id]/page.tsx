@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { prisma } from "@/lib/db";
@@ -35,12 +36,12 @@ export default async function TournamentDetailPage({
           </div>
           <h1 className="display text-4xl">{tournament.name}</h1>
           <p className="mt-2 text-white/70">
-            {tournament.venue?.name ?? tournament.city}, {tournament.state} ·{" "}
+            {tournament.venue?.name ?? tournament.city}, {tournament.state} -{" "}
             {tournament.startDate.toLocaleDateString("en-US", {
               month: "long",
               day: "numeric",
             })}
-            –
+            -
             {tournament.endDate.toLocaleDateString("en-US", {
               month: "long",
               day: "numeric",
@@ -73,6 +74,32 @@ export default async function TournamentDetailPage({
               </li>
             )}
           </ul>
+
+          <h2 className="display mt-10 text-2xl">Registered teams</h2>
+          {tournament.registrations.length === 0 ? (
+            <p className="mt-3 text-sm text-ink/50">
+              No teams have registered yet - be the first.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {tournament.registrations.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex items-center justify-between border-b border-steel/20 py-2 text-sm"
+                >
+                  <Link
+                    href={`/registrations/${r.id}`}
+                    className="font-semibold hover:text-red"
+                  >
+                    {r.teamName}
+                  </Link>
+                  <span className="text-xs uppercase text-ink/50">
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="h-fit rounded-sm border border-steel/30 bg-white p-6">

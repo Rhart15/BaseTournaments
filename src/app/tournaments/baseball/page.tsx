@@ -1,8 +1,8 @@
-import TournamentsView from "./TournamentsView";
+import TournamentsView from "../TournamentsView";
 
 export const dynamic = "force-dynamic";
 
-export default async function TournamentsPage({
+export default async function BaseballTournamentsPage({
   searchParams,
 }: {
   searchParams: Promise<{
@@ -13,5 +13,5 @@ export default async function TournamentsPage({
   }>;
 }) {
   const params = await searchParams;
-  return <TournamentsView params={params} />;
+  return <TournamentsView lockedSport="BASEBALL" params={params} />;
 }

@@ -35,12 +35,22 @@ export default async function RegisterSuccessPage({
             email shortly.
           </p>
         )}
-        <Link
-          href="/tournaments"
-          className="mt-8 inline-block rounded-sm bg-red px-6 py-3 font-semibold text-white hover:bg-red-dark"
-        >
-          Browse more tournaments
-        </Link>
+        <div className="mt-8 flex flex-wrap justify-center gap-4">
+          {registration && (
+            <Link
+              href={`/registrations/${registration.id}`}
+              className="rounded-sm bg-red px-6 py-3 font-semibold text-white hover:bg-red-dark"
+            >
+              Manage your team roster
+            </Link>
+          )}
+          <Link
+            href="/tournaments"
+            className="rounded-sm border border-steel/40 px-6 py-3 font-semibold text-ink hover:border-red"
+          >
+            Browse more tournaments
+          </Link>
+        </div>
       </section>
       <SiteFooter />
     </>

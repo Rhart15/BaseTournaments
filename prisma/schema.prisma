@@ -1,4 +1,4 @@
-// BASE Events — core data model
+// BASE Events - core data model
 // Covers: tournament listings, team registration + payment, and
 // pool-play-into-bracket scheduling with live score entry.
 
@@ -71,7 +71,7 @@ model Division {
   id           String   @id @default(cuid())
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
-  label        String   // e.g. "10U", "12U Gold"
+  label        String
   ageLimit     Int?
 
   pools         Pool[]
@@ -83,7 +83,7 @@ model Pool {
   id         String   @id @default(cuid())
   divisionId String
   division   Division @relation(fields: [divisionId], references: [id])
-  label      String   // "Pool A"
+  label      String
 
   teams Registration[] @relation("PoolAssignment")
   games Game[]
@@ -107,7 +107,7 @@ model Registration {
   stripeSessionId String?
   paidAt        DateTime?
 
-  seed          Int?      // seed going into the bracket after pool play
+  seed          Int?
   poolWins      Int       @default(0)
   poolLosses    Int       @default(0)
   runsFor       Int       @default(0)
@@ -117,6 +117,20 @@ model Registration {
 
   homeGames Game[] @relation("HomeTeam")
   awayGames Game[] @relation("AwayTeam")
+  rosterPlayers RosterPlayer[]
+}
+
+model RosterPlayer {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  firstName    String
+  lastName     String
+  jerseyNumber String?
+  position     String?
+
+  createdAt    DateTime @default(now())
 }
 
 model Game {
@@ -127,8 +141,8 @@ model Game {
   pool         Pool?    @relation(fields: [poolId], references: [id])
 
   stage        GameStage
-  round        String?   // e.g. "Winners R1", "Championship" for bracket stage
-  bracketSlot  Int?      // position in the bracket for advancement logic
+  round        String?
+  bracketSlot  Int?
 
   homeTeamId   String?
   homeTeam     Registration? @relation("HomeTeam", fields: [homeTeamId], references: [id])
@@ -142,7 +156,7 @@ model Game {
   awayScore    Int?
   status       GameStatus @default(SCHEDULED)
 
-  advancesToGameId String?  // next game the winner feeds into
+  advancesToGameId String?
 
   updatedAt    DateTime @updatedAt
 }
@@ -154,7 +168,7 @@ model Director {
   name          String
   email         String   @unique
   phone         String?
-  region        String   // e.g. "Central Arkansas", "NW Arkansas"
+  region        String
   bio           String?
   photoUrl      String?
   sanctionFeePaid Boolean @default(false)
@@ -185,7 +199,7 @@ model Team {
   homeState     String   @default("AR")
 
   insuranceStatus ComplianceStatus @default(PENDING)
-  insuranceProvider String? // e.g. "Chappell Insurance"
+  insuranceProvider String?
   insuranceExpiresAt DateTime?
 
   createdAt     DateTime @default(now())
@@ -223,7 +237,7 @@ model Post {
 
 model AgeChartEntry {
   id        String @id @default(cuid())
-  division  String  // e.g. "10U"
+  division  String
   birthYearStart Int
   birthYearEnd   Int
   sport     Sport
