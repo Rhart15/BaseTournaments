@@ -4,26 +4,35 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-const primaryLinks = [
-  { href: "/tournaments", label: "Tournaments" },
+const tournamentLinks = [
+  { href: "/tournaments", label: "All tournaments" },
+  { href: "/tournaments/baseball", label: "Baseball" },
+  { href: "/tournaments/softball", label: "Softball" },
+  { href: "/players", label: "Players" },
   { href: "/teams", label: "Teams" },
-  { href: "/venues", label: "Venues" },
+  { href: "/venues", label: "BASE Venues" },
 ];
 
-const moreLinks = [
-  { href: "/players", label: "Players" },
-  { href: "/rules", label: "Rules" },
-  { href: "/age-chart", label: "Age chart" },
+const toolsLinks = [
   { href: "/coaches-corner", label: "Coach's corner" },
-  { href: "/directors", label: "Become a director" },
+  { href: "/age-chart", label: "Age chart" },
+  { href: "#", label: "Team insurance" },
+  { href: "#", label: "Background check" },
+  { href: "/rules", label: "BASE official rules" },
+  { href: "/directors", label: "Director recruitment" },
+];
+
+const allMobileLinks = [
+  { href: "/", label: "Home" },
+  ...tournamentLinks,
+  ...toolsLinks,
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];
 
-const allLinks = [...primaryLinks, ...moreLinks];
-
 export default function SiteHeader() {
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [tournamentsOpen, setTournamentsOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -44,31 +53,28 @@ export default function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">
-          {primaryLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm text-white/80 transition hover:text-gold"
-            >
-              {link.label}
-            </Link>
-          ))}
+          <Link
+            href="/"
+            className="text-sm text-white/80 transition hover:text-gold"
+          >
+            Home
+          </Link>
 
           <div
             className="relative"
-            onMouseEnter={() => setMoreOpen(true)}
-            onMouseLeave={() => setMoreOpen(false)}
+            onMouseEnter={() => setTournamentsOpen(true)}
+            onMouseLeave={() => setTournamentsOpen(false)}
           >
             <button
               type="button"
-              onClick={() => setMoreOpen((v) => !v)}
+              onClick={() => setTournamentsOpen((v) => !v)}
               className="text-sm text-white/80 transition hover:text-gold"
             >
-              More
+              Tournaments
             </button>
-            {moreOpen && (
+            {tournamentsOpen && (
               <div className="absolute left-0 top-full z-20 mt-2 w-48 rounded-sm bg-white py-2 text-ink shadow-lg">
-                {moreLinks.map((link) => (
+                {tournamentLinks.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
@@ -80,6 +86,46 @@ export default function SiteHeader() {
               </div>
             )}
           </div>
+
+          <div
+            className="relative"
+            onMouseEnter={() => setToolsOpen(true)}
+            onMouseLeave={() => setToolsOpen(false)}
+          >
+            <button
+              type="button"
+              onClick={() => setToolsOpen((v) => !v)}
+              className="text-sm text-white/80 transition hover:text-gold"
+            >
+              Tools
+            </button>
+            {toolsOpen && (
+              <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-sm bg-white py-2 text-ink shadow-lg">
+                {toolsLinks.map((link) => (
+                  <Link
+                    key={link.label}
+                    href={link.href}
+                    className="block px-4 py-2 text-sm hover:bg-navy/5 hover:text-red"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Link
+            href="/about"
+            className="text-sm text-white/80 transition hover:text-gold"
+          >
+            About
+          </Link>
+          <Link
+            href="/contact"
+            className="text-sm text-white/80 transition hover:text-gold"
+          >
+            Contact
+          </Link>
         </nav>
 
         <div className="flex items-center gap-4">
@@ -117,9 +163,9 @@ export default function SiteHeader() {
 
       {mobileOpen && (
         <nav className="border-t border-white/10 bg-navy px-6 py-4 md:hidden">
-          {allLinks.map((link) => (
+          {allMobileLinks.map((link) => (
             <Link
-              key={link.href}
+              key={link.label}
               href={link.href}
               onClick={() => setMobileOpen(false)}
               className="block py-2 text-sm text-white/80 hover:text-gold"
