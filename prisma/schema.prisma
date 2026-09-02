@@ -1,0 +1,148 @@
+// BASE Events — core data model
+// Covers: tournament listings, team registration + payment, and
+// pool-play-into-bracket scheduling with live score entry.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Sport {
+  BASEBALL
+  SOFTBALL
+}
+
+enum RegistrationStatus {
+  PENDING
+  PAID
+  REFUNDED
+  CANCELLED
+}
+
+enum GameStage {
+  POOL
+  BRACKET
+}
+
+enum GameStatus {
+  SCHEDULED
+  IN_PROGRESS
+  FINAL
+  CANCELLED
+}
+
+model Tournament {
+  id          String   @id @default(cuid())
+  name        String
+  sport       Sport
+  startDate   DateTime
+  endDate     DateTime
+  venueId     String?
+  venue       Venue?   @relation(fields: [venueId], references: [id])
+  city        String
+  state       String   @default("AR")
+  description String?
+  entryFeeCents Int
+  teamCap     Int
+  registrationOpensAt  DateTime?
+  registrationClosesAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  divisions     Division[]
+  registrations Registration[]
+}
+
+model Venue {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  city        String
+  state       String   @default("AR")
+  fieldCount  Int      @default(1)
+  tournaments Tournament[]
+}
+
+model Division {
+  id           String   @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  label        String   // e.g. "10U", "12U Gold"
+  ageLimit     Int?
+
+  pools         Pool[]
+  registrations Registration[]
+  games         Game[]
+}
+
+model Pool {
+  id         String   @id @default(cuid())
+  divisionId String
+  division   Division @relation(fields: [divisionId], references: [id])
+  label      String   // "Pool A"
+
+  teams Registration[] @relation("PoolAssignment")
+  games Game[]
+}
+
+model Registration {
+  id           String   @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  divisionId   String
+  division     Division @relation(fields: [divisionId], references: [id])
+  poolId       String?
+  pool         Pool?    @relation("PoolAssignment", fields: [poolId], references: [id])
+
+  teamName     String
+  coachName    String
+  coachEmail   String
+  coachPhone   String
+
+  status        RegistrationStatus @default(PENDING)
+  stripeSessionId String?
+  paidAt        DateTime?
+
+  seed          Int?      // seed going into the bracket after pool play
+  poolWins      Int       @default(0)
+  poolLosses    Int       @default(0)
+  runsFor       Int       @default(0)
+  runsAgainst   Int       @default(0)
+
+  createdAt     DateTime  @default(now())
+
+  homeGames Game[] @relation("HomeTeam")
+  awayGames Game[] @relation("AwayTeam")
+}
+
+model Game {
+  id           String   @id @default(cuid())
+  divisionId   String
+  division     Division @relation(fields: [divisionId], references: [id])
+  poolId       String?
+  pool         Pool?    @relation(fields: [poolId], references: [id])
+
+  stage        GameStage
+  round        String?   // e.g. "Winners R1", "Championship" for bracket stage
+  bracketSlot  Int?      // position in the bracket for advancement logic
+
+  homeTeamId   String?
+  homeTeam     Registration? @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId   String?
+  awayTeam     Registration? @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  fieldName    String?
+  startTime    DateTime?
+
+  homeScore    Int?
+  awayScore    Int?
+  status       GameStatus @default(SCHEDULED)
+
+  advancesToGameId String?  // next game the winner feeds into
+
+  updatedAt    DateTime @updatedAt
+}
