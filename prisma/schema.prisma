@@ -146,3 +146,97 @@ model Game {
 
   updatedAt    DateTime @updatedAt
 }
+
+// --- Director / sanctioning-body layer -------------------------------
+
+model Director {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  phone         String?
+  region        String   // e.g. "Central Arkansas", "NW Arkansas"
+  bio           String?
+  photoUrl      String?
+  sanctionFeePaid Boolean @default(false)
+  backgroundCheckStatus ComplianceStatus @default(PENDING)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  teams         Team[]
+}
+
+enum ComplianceStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  EXPIRED
+}
+
+// --- Persistent team / roster layer -----------------------------------
+
+model Team {
+  id            String   @id @default(cuid())
+  name          String
+  organization  String?
+  directorId    String?
+  director      Director? @relation(fields: [directorId], references: [id])
+  ageGroup      String
+  homeCity      String?
+  homeState     String   @default("AR")
+
+  insuranceStatus ComplianceStatus @default(PENDING)
+  insuranceProvider String? // e.g. "Chappell Insurance"
+  insuranceExpiresAt DateTime?
+
+  createdAt     DateTime @default(now())
+
+  players       Player[]
+}
+
+model Player {
+  id           String   @id @default(cuid())
+  teamId       String
+  team         Team     @relation(fields: [teamId], references: [id])
+  firstName    String
+  lastName     String
+  jerseyNumber String?
+  position     String?
+  birthYear    Int?
+
+  backgroundCheckStatus ComplianceStatus @default(PENDING)
+
+  createdAt    DateTime @default(now())
+}
+
+// --- Content / marketing layer -----------------------------------------
+
+model Post {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  excerpt     String?
+  body        String
+  coverImageUrl String?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model AgeChartEntry {
+  id        String @id @default(cuid())
+  division  String  // e.g. "10U"
+  birthYearStart Int
+  birthYearEnd   Int
+  sport     Sport
+  sortOrder Int    @default(0)
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String?
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

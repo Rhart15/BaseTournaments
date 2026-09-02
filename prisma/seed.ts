@@ -69,6 +69,92 @@ async function main() {
   console.log(
     `Seeded 1 tournament, 1 division, ${registrations.length} teams.`
   );
+
+  // --- Directors / teams / players -------------------------------
+  const director = await prisma.director.create({
+    data: {
+      name: "Marcus Whitfield",
+      email: "marcus@basetournament.com",
+      phone: "501-555-0111",
+      region: "Central Arkansas",
+      bio: "Running BASE events across Central Arkansas since 2023.",
+      sanctionFeePaid: true,
+      backgroundCheckStatus: "APPROVED",
+    },
+  });
+
+  const team = await prisma.team.create({
+    data: {
+      name: "Arkansas Blackout",
+      organization: "Arkansas Blackout Softball",
+      directorId: director.id,
+      ageGroup: "10U Gold",
+      homeCity: "Clinton",
+      homeState: "AR",
+      insuranceStatus: "APPROVED",
+      insuranceProvider: "Chappell Insurance",
+      insuranceExpiresAt: new Date("2027-01-01"),
+    },
+  });
+
+  await prisma.player.createMany({
+    data: [
+      {
+        teamId: team.id,
+        firstName: "Ava",
+        lastName: "Johnson",
+        jerseyNumber: "7",
+        position: "SS",
+        birthYear: 2016,
+        backgroundCheckStatus: "APPROVED",
+      },
+      {
+        teamId: team.id,
+        firstName: "Riley",
+        lastName: "Carter",
+        jerseyNumber: "12",
+        position: "P",
+        birthYear: 2015,
+        backgroundCheckStatus: "APPROVED",
+      },
+      {
+        teamId: team.id,
+        firstName: "Sophia",
+        lastName: "Martinez",
+        jerseyNumber: "3",
+        position: "1B",
+        birthYear: 2016,
+        backgroundCheckStatus: "SUBMITTED",
+      },
+    ],
+  });
+
+  // --- Age chart ----------------------------------------------------
+  await prisma.ageChartEntry.createMany({
+    data: [
+      { division: "8U", birthYearStart: 2017, birthYearEnd: 2018, sport: "SOFTBALL", sortOrder: 1 },
+      { division: "10U", birthYearStart: 2015, birthYearEnd: 2016, sport: "SOFTBALL", sortOrder: 2 },
+      { division: "12U", birthYearStart: 2013, birthYearEnd: 2014, sport: "SOFTBALL", sortOrder: 3 },
+      { division: "14U", birthYearStart: 2011, birthYearEnd: 2012, sport: "SOFTBALL", sortOrder: 4 },
+      { division: "8U", birthYearStart: 2017, birthYearEnd: 2018, sport: "BASEBALL", sortOrder: 1 },
+      { division: "10U", birthYearStart: 2015, birthYearEnd: 2016, sport: "BASEBALL", sortOrder: 2 },
+      { division: "12U", birthYearStart: 2013, birthYearEnd: 2014, sport: "BASEBALL", sortOrder: 3 },
+      { division: "14U", birthYearStart: 2011, birthYearEnd: 2012, sport: "BASEBALL", sortOrder: 4 },
+    ],
+  });
+
+  // --- Coach's Corner posts ------------------------------------------
+  await prisma.post.create({
+    data: {
+      title: "Welcome to the new BASE website",
+      slug: "welcome-to-the-new-base-website",
+      excerpt: "A quick look at what's new for teams and directors this season.",
+      body: "We're excited to launch the new BASE Events platform. Teams can now register and pay online, track their pool-play results, and follow live brackets from any device. Directors get a streamlined dashboard for managing tournaments end to end.\n\nMore updates are coming soon — stay tuned to Coach's Corner for tips, rule clarifications, and season announcements.",
+      publishedAt: new Date(),
+    },
+  });
+
+  console.log("Seeded directors, teams, players, age chart, and posts.");
 }
 
 main()

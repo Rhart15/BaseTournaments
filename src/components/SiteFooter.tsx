@@ -20,6 +20,9 @@ export default function SiteFooter() {
               <li><Link href="/teams">Teams</Link></li>
               <li><Link href="/venues">Venues</Link></li>
               <li><Link href="/rules">Official rules</Link></li>
+              <li><Link href="/age-chart">Age chart</Link></li>
+              <li><Link href="/coaches-corner">Coach&apos;s corner</Link></li>
+              <li><Link href="/directors">Become a director</Link></li>
             </ul>
           </div>
           <div>

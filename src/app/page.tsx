@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 
@@ -16,32 +17,42 @@ export default function Home() {
               "linear-gradient(135deg, transparent 40%, var(--red) 40%, var(--red) 44%, transparent 44%, transparent 55%, var(--gold) 55%, var(--gold) 58%, transparent 58%)",
           }}
         />
-        <div className="mx-auto max-w-6xl px-6 py-24">
-          <p className="text-sm uppercase tracking-[0.3em] text-gold">
-            Little Rock, Arkansas
-          </p>
-          <h1 className="display mt-4 max-w-2xl text-6xl font-semibold leading-[0.95] sm:text-7xl">
-            Where champions play.
-          </h1>
-          <p className="mt-6 max-w-lg text-lg text-white/80">
-            Real competition, fair brackets, and events built around
-            athletes — not politics. Register your team for an upcoming
-            BASE tournament.
-          </p>
-          <div className="mt-10 flex flex-wrap gap-4">
-            <Link
-              href="/tournaments"
-              className="rounded-sm bg-red px-6 py-3 font-semibold text-white transition hover:bg-red-dark"
-            >
-              Browse tournaments
-            </Link>
-            <Link
-              href="/about"
-              className="rounded-sm border border-white/30 px-6 py-3 font-semibold text-white transition hover:border-white"
-            >
-              Why BASE
-            </Link>
+        <div className="relative mx-auto flex max-w-6xl flex-col-reverse items-center gap-10 px-6 py-24 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.3em] text-gold">
+              Little Rock, Arkansas
+            </p>
+            <h1 className="display mt-4 max-w-2xl text-6xl font-semibold leading-[0.95] sm:text-7xl">
+              Where champions play.
+            </h1>
+            <p className="mt-6 max-w-lg text-lg text-white/80">
+              Real competition, fair brackets, and events built around
+              athletes — not politics. Register your team for an upcoming
+              BASE tournament.
+            </p>
+            <div className="mt-10 flex flex-wrap gap-4">
+              <Link
+                href="/tournaments"
+                className="rounded-sm bg-red px-6 py-3 font-semibold text-white transition hover:bg-red-dark"
+              >
+                Browse tournaments
+              </Link>
+              <Link
+                href="/about"
+                className="rounded-sm border border-white/30 px-6 py-3 font-semibold text-white transition hover:border-white"
+              >
+                Why BASE
+              </Link>
+            </div>
           </div>
+          <Image
+            src="/brand/base-logo.png"
+            alt="BASE - Best American Sporting Events"
+            width={280}
+            height={266}
+            className="w-40 flex-shrink-0 sm:w-64"
+            priority
+          />
         </div>
       </section>
 
