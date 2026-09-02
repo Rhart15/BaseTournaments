@@ -2,8 +2,18 @@ import Link from "next/link";
 import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import { prisma } from "@/lib/db";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const upcoming = await prisma.tournament.findMany({
+    where: { startDate: { gte: new Date() } },
+    orderBy: { startDate: "asc" },
+    take: 4,
+    include: { divisions: true },
+  });
+
   return (
     <>
       <SiteHeader />
@@ -27,7 +37,7 @@ export default function Home() {
             </h1>
             <p className="mt-6 max-w-lg text-lg text-white/80">
               Real competition, fair brackets, and events built around
-              athletes — not politics. Register your team for an upcoming
+              athletes - not politics. Register your team for an upcoming
               BASE tournament.
             </p>
             <div className="mt-10 flex flex-wrap gap-4">
@@ -59,13 +69,43 @@ export default function Home() {
       <section className="mx-auto max-w-6xl px-6 py-16">
         <h2 className="display text-3xl">Upcoming events</h2>
         <div className="seam-divider my-6" />
-        <p className="text-ink/70">
-          Live tournament listings load here from the schedule below —
-          date, division, entry fee, and open slots at a glance.
-        </p>
+
+        {upcoming.length === 0 ? (
+          <p className="text-ink/70">
+            No upcoming tournaments are published yet - check back soon.
+          </p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {upcoming.map((t) => (
+              <Link
+                key={t.id}
+                href={`/tournaments/${t.id}`}
+                className="flex flex-col rounded-sm border border-steel/20 p-4 transition hover:border-red"
+              >
+                <span className="text-xs uppercase tracking-wide text-red">
+                  {t.sport === "SOFTBALL" ? "Softball" : "Baseball"}
+                </span>
+                <span className="display mt-1 text-lg leading-tight">
+                  {t.name}
+                </span>
+                <span className="mt-2 text-sm text-ink/60">
+                  {t.startDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  })}{" "}
+                  - {t.city}
+                </span>
+                <span className="mt-3 text-sm font-semibold text-ink">
+                  ${(t.entryFeeCents / 100).toFixed(0)} entry
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
+
         <Link
           href="/tournaments"
-          className="mt-4 inline-block font-semibold text-red hover:text-red-dark"
+          className="mt-6 inline-block font-semibold text-red hover:text-red-dark"
         >
           See the full schedule
         </Link>
@@ -76,7 +116,7 @@ export default function Home() {
           <div>
             <div className="display text-2xl text-gold">Fair brackets</div>
             <p className="mt-2 text-sm text-white/70">
-              Pool play seeds every bracket — no politics, just results on
+              Pool play seeds every bracket - no politics, just results on
               the field.
             </p>
           </div>
