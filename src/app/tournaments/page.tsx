@@ -27,7 +27,7 @@ export default async function TournamentsPage() {
       <section className="mx-auto max-w-6xl px-6 py-12">
         {tournaments.length === 0 && (
           <p className="text-ink/60">
-            No tournaments are published yet — check back soon.
+            No tournaments are published yet - check back soon.
           </p>
         )}
 
@@ -47,7 +47,7 @@ export default async function TournamentsPage() {
               ? `${t.startDate.toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
-                })}–${t.endDate.getDate()}`
+                })}-${t.endDate.getDate()}`
               : t.startDate.getTime() === t.endDate.getTime()
               ? t.startDate.toLocaleDateString("en-US", {
                   month: "short",
@@ -56,7 +56,7 @@ export default async function TournamentsPage() {
               : `${t.startDate.toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
-                })} – ${t.endDate.toLocaleDateString("en-US", {
+                })} - ${t.endDate.toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
                 })}`;
@@ -80,7 +80,7 @@ export default async function TournamentsPage() {
                 <div className="flex flex-1 flex-col p-5">
                   <h2 className="display text-lg leading-tight">{t.name}</h2>
                   <p className="mt-1 text-sm text-ink/60">
-                    {dateLabel} &middot; {t.city}
+                    {dateLabel} - {t.city}
                   </p>
 
                   {t.divisions.length > 0 && (
