@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -35,6 +35,25 @@ export default function SiteHeader() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const tournamentsRef = useRef<HTMLDivElement>(null);
+  const toolsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        tournamentsRef.current &&
+        !tournamentsRef.current.contains(e.target as Node)
+      ) {
+        setTournamentsOpen(false);
+      }
+      if (toolsRef.current && !toolsRef.current.contains(e.target as Node)) {
+        setToolsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
     <header className="relative bg-navy text-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
@@ -60,14 +79,13 @@ export default function SiteHeader() {
             Home
           </Link>
 
-          <div
-            className="relative"
-            onMouseEnter={() => setTournamentsOpen(true)}
-            onMouseLeave={() => setTournamentsOpen(false)}
-          >
+          <div className="relative" ref={tournamentsRef}>
             <button
               type="button"
-              onClick={() => setTournamentsOpen((v) => !v)}
+              onClick={() => {
+                setToolsOpen(false);
+                setTournamentsOpen((v) => !v);
+              }}
               className="text-sm text-white/80 transition hover:text-gold"
             >
               Tournaments
@@ -78,6 +96,7 @@ export default function SiteHeader() {
                   <Link
                     key={link.href}
                     href={link.href}
+                    onClick={() => setTournamentsOpen(false)}
                     className="block px-4 py-2 text-sm hover:bg-navy/5 hover:text-red"
                   >
                     {link.label}
@@ -87,14 +106,13 @@ export default function SiteHeader() {
             )}
           </div>
 
-          <div
-            className="relative"
-            onMouseEnter={() => setToolsOpen(true)}
-            onMouseLeave={() => setToolsOpen(false)}
-          >
+          <div className="relative" ref={toolsRef}>
             <button
               type="button"
-              onClick={() => setToolsOpen((v) => !v)}
+              onClick={() => {
+                setTournamentsOpen(false);
+                setToolsOpen((v) => !v);
+              }}
               className="text-sm text-white/80 transition hover:text-gold"
             >
               Tools
@@ -105,6 +123,7 @@ export default function SiteHeader() {
                   <Link
                     key={link.label}
                     href={link.href}
+                    onClick={() => setToolsOpen(false)}
                     className="block px-4 py-2 text-sm hover:bg-navy/5 hover:text-red"
                   >
                     {link.label}
