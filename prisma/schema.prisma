@@ -119,6 +119,9 @@ model Registration {
   homeGames Game[] @relation("HomeTeam")
   awayGames Game[] @relation("AwayTeam")
   rosterPlayers RosterPlayer[]
+
+  teamId       String?
+  team         Team?    @relation(fields: [teamId], references: [id])
 }
 
 model RosterPlayer {
@@ -187,6 +190,37 @@ enum ComplianceStatus {
   EXPIRED
 }
 
+// --- User accounts (coaches and parents) -------------------------------
+
+enum UserRole {
+  COACH
+  PARENT
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         UserRole @default(COACH)
+  createdAt    DateTime @default(now())
+
+  teams    Team[]
+  athletes FamilyAthlete[]
+}
+
+model FamilyAthlete {
+  id        String   @id @default(cuid())
+  parentId  String
+  parent    User     @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  birthYear Int?
+  createdAt DateTime @default(now())
+}
+
 // --- Persistent team / roster layer -----------------------------------
 
 model Team {
@@ -198,6 +232,10 @@ model Team {
   ageGroup      String
   homeCity      String?
   homeState     String   @default("AR")
+  logoUrl       String?
+
+  coachUserId   String?
+  coachUser     User?    @relation(fields: [coachUserId], references: [id])
 
   insuranceStatus ComplianceStatus @default(PENDING)
   insuranceProvider String? // e.g. "Chappell Insurance"
@@ -206,6 +244,39 @@ model Team {
   createdAt     DateTime @default(now())
 
   players       Player[]
+  staff         TeamStaff[]
+  documents     TeamDocument[]
+  registrations Registration[]
+}
+
+model TeamStaff {
+  id       String  @id @default(cuid())
+  teamId   String
+  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  name     String
+  role     String  // e.g. "Head Coach", "Assistant Coach"
+  phone    String?
+  email    String?
+  isHousingContact Boolean @default(false)
+
+  backgroundCheckStatus ComplianceStatus @default(PENDING)
+  backgroundCheckFileUrl String?
+  backgroundCheckFileName String?
+
+  createdAt DateTime @default(now())
+}
+
+model TeamDocument {
+  id       String  @id @default(cuid())
+  teamId   String
+  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  label    String
+  fileUrl  String
+  fileName String
+
+  createdAt DateTime @default(now())
 }
 
 model Player {
@@ -219,6 +290,8 @@ model Player {
   birthYear    Int?
 
   backgroundCheckStatus ComplianceStatus @default(PENDING)
+  backgroundCheckFileUrl String?
+  backgroundCheckFileName String?
 
   createdAt    DateTime @default(now())
 }
