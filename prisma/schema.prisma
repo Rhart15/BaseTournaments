@@ -46,6 +46,7 @@ model Tournament {
   city        String
   state       String   @default("AR")
   description String?
+  flyerUrl    String?
   entryFeeCents Int
   teamCap     Int
   registrationOpensAt  DateTime?
@@ -71,7 +72,7 @@ model Division {
   id           String   @id @default(cuid())
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
-  label        String
+  label        String   // e.g. "10U", "12U Gold"
   ageLimit     Int?
 
   pools         Pool[]
@@ -83,7 +84,7 @@ model Pool {
   id         String   @id @default(cuid())
   divisionId String
   division   Division @relation(fields: [divisionId], references: [id])
-  label      String
+  label      String   // "Pool A"
 
   teams Registration[] @relation("PoolAssignment")
   games Game[]
@@ -107,7 +108,7 @@ model Registration {
   stripeSessionId String?
   paidAt        DateTime?
 
-  seed          Int?
+  seed          Int?      // seed going into the bracket after pool play
   poolWins      Int       @default(0)
   poolLosses    Int       @default(0)
   runsFor       Int       @default(0)
@@ -141,8 +142,8 @@ model Game {
   pool         Pool?    @relation(fields: [poolId], references: [id])
 
   stage        GameStage
-  round        String?
-  bracketSlot  Int?
+  round        String?   // e.g. "Winners R1", "Championship" for bracket stage
+  bracketSlot  Int?      // position in the bracket for advancement logic
 
   homeTeamId   String?
   homeTeam     Registration? @relation("HomeTeam", fields: [homeTeamId], references: [id])
@@ -156,7 +157,7 @@ model Game {
   awayScore    Int?
   status       GameStatus @default(SCHEDULED)
 
-  advancesToGameId String?
+  advancesToGameId String?  // next game the winner feeds into
 
   updatedAt    DateTime @updatedAt
 }
@@ -168,7 +169,7 @@ model Director {
   name          String
   email         String   @unique
   phone         String?
-  region        String
+  region        String   // e.g. "Central Arkansas", "NW Arkansas"
   bio           String?
   photoUrl      String?
   sanctionFeePaid Boolean @default(false)
@@ -199,7 +200,7 @@ model Team {
   homeState     String   @default("AR")
 
   insuranceStatus ComplianceStatus @default(PENDING)
-  insuranceProvider String?
+  insuranceProvider String? // e.g. "Chappell Insurance"
   insuranceExpiresAt DateTime?
 
   createdAt     DateTime @default(now())
@@ -237,7 +238,7 @@ model Post {
 
 model AgeChartEntry {
   id        String @id @default(cuid())
-  division  String
+  division  String  // e.g. "10U"
   birthYearStart Int
   birthYearEnd   Int
   sport     Sport

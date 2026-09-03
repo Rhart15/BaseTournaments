@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import GenerateBracketButton from "./GenerateBracketButton";
 import ScoreEntry from "./ScoreEntry";
 import EditTournamentForm from "./EditTournamentForm";
+import FlyerUpload from "./FlyerUpload";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function AdminTournamentPage({
     <div className="min-h-screen bg-cream">
       <header className="bg-navy px-6 py-5 text-white">
         <Link href="/admin" className="text-sm text-white/60 hover:text-white">
-          ← All tournaments
+          Back to all tournaments
         </Link>
         <h1 className="display mt-1 text-2xl">{tournament.name}</h1>
       </header>
@@ -40,7 +41,14 @@ export default async function AdminTournamentPage({
       <div className="mx-auto max-w-6xl space-y-12 px-6 py-10">
         <section>
           <h2 className="display mb-4 text-xl">Tournament info</h2>
-          <EditTournamentForm
+          <div className="rounded-sm border border-steel/20 bg-white p-6">
+            <FlyerUpload
+              tournamentId={tournament.id}
+              initialFlyerUrl={tournament.flyerUrl}
+            />
+          </div>
+          <div className="mt-6">
+            <EditTournamentForm
             tournamentId={tournament.id}
             initial={{
               name: tournament.name,
@@ -57,7 +65,8 @@ export default async function AdminTournamentPage({
               id: d.id,
               label: d.label,
             }))}
-          />
+            />
+          </div>
         </section>
 
         {tournament.divisions.map((division) => {
@@ -83,7 +92,7 @@ export default async function AdminTournamentPage({
                     href={`/tournaments/${tournament.id}/divisions/${division.id}/bracket`}
                     className="text-sm font-semibold text-red hover:text-red-dark"
                   >
-                    View bracket →
+                    View bracket {"->"}
                   </Link>
                 )}
               </div>
