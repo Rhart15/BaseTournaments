@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import StatusSelect from "@/components/admin/StatusSelect";
+import MarkHandledButton from "@/components/admin/MarkHandledButton";
 
 export const dynamic = "force-dynamic";
 
@@ -113,8 +115,22 @@ export default async function AdminPage() {
                 <tr key={d.id} className="border-b border-steel/15">
                   <td className="py-3">{d.name}</td>
                   <td>{d.region}</td>
-                  <td>{d.sanctionFeePaid ? "Paid" : "Unpaid"}</td>
-                  <td>{d.backgroundCheckStatus}</td>
+                  <td>
+                    <StatusSelect
+                      endpoint={`/api/admin/directors/${d.id}`}
+                      field="sanctionFeePaid"
+                      value={d.sanctionFeePaid ? "true" : "false"}
+                      options={["true", "false"]}
+                    />
+                  </td>
+                  <td>
+                    <StatusSelect
+                      endpoint={`/api/admin/directors/${d.id}`}
+                      field="backgroundCheckStatus"
+                      value={d.backgroundCheckStatus}
+                      options={["PENDING", "SUBMITTED", "APPROVED", "EXPIRED"]}
+                    />
+                  </td>
                 </tr>
               ))}
               {directors.length === 0 && (
@@ -150,9 +166,16 @@ export default async function AdminPage() {
                     </Link>
                   </td>
                   <td>{t.ageGroup}</td>
-                  <td>{t.director?.name ?? "—"}</td>
+                  <td>{t.director?.name ?? "-"}</td>
                   <td>{t._count.players}</td>
-                  <td>{t.insuranceStatus}</td>
+                  <td>
+                    <StatusSelect
+                      endpoint={`/api/admin/teams/${t.id}`}
+                      field="insuranceStatus"
+                      value={t.insuranceStatus}
+                      options={["PENDING", "SUBMITTED", "APPROVED", "EXPIRED"]}
+                    />
+                  </td>
                 </tr>
               ))}
               {teams.length === 0 && (
@@ -182,14 +205,17 @@ export default async function AdminPage() {
                 >
                   <div className="flex items-center justify-between">
                     <p className="font-semibold">
-                      {c.name} · {c.email}
+                      {c.name} - {c.email}
                     </p>
-                    <p className="text-xs text-ink/50">
-                      {c.createdAt.toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs text-ink/50">
+                        {c.createdAt.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </p>
+                      <MarkHandledButton id={c.id} />
+                    </div>
                   </div>
                   {c.subject && (
                     <p className="mt-1 font-medium text-ink/70">

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import GenerateBracketButton from "./GenerateBracketButton";
 import ScoreEntry from "./ScoreEntry";
+import EditTournamentForm from "./EditTournamentForm";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,28 @@ export default async function AdminTournamentPage({
       </header>
 
       <div className="mx-auto max-w-6xl space-y-12 px-6 py-10">
+        <section>
+          <h2 className="display mb-4 text-xl">Tournament info</h2>
+          <EditTournamentForm
+            tournamentId={tournament.id}
+            initial={{
+              name: tournament.name,
+              sport: tournament.sport,
+              startDate: tournament.startDate.toISOString().slice(0, 10),
+              endDate: tournament.endDate.toISOString().slice(0, 10),
+              city: tournament.city,
+              state: tournament.state,
+              entryFeeDollars: tournament.entryFeeCents / 100,
+              teamCap: tournament.teamCap,
+              description: tournament.description ?? "",
+            }}
+            divisions={tournament.divisions.map((d) => ({
+              id: d.id,
+              label: d.label,
+            }))}
+          />
+        </section>
+
         {tournament.divisions.map((division) => {
           const poolGames = division.games.filter((g) => g.stage === "POOL");
           const bracketGames = division.games.filter(
