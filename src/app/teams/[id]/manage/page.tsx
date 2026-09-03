@@ -1,7 +1,5 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { auth } from "@/auth";
-import { isAdminAuthed } from "@/lib/adminAuth";
 import TeamManageClient from "./TeamManageClient";
 
 export const dynamic = "force-dynamic";
@@ -27,21 +25,6 @@ export default async function TeamManagePage({
   });
 
   if (!team) notFound();
-
-  // Access rule: admins can always manage any team. Otherwise, the
-  // logged-in coach must either own this team already, or the team has no
-  // owning coach assigned yet (covers teams created before real accounts
-  // existed) -- once a coach opens it, later we may want to auto-claim it.
-  const adminOk = await isAdminAuthed();
-  if (!adminOk) {
-    const session = await auth();
-    if (!session) {
-      redirect(`/login?next=/teams/${id}/manage`);
-    }
-    if (team.coachUserId && team.coachUserId !== session.user.id) {
-      redirect("/account");
-    }
-  }
 
   const now = new Date();
   const upcoming = team.registrations.filter(

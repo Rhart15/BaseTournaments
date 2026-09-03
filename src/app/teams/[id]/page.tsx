@@ -1,5 +1,7 @@
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import Link from "next/link";
+import Image from "next/image";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 
@@ -23,15 +25,30 @@ export default async function TeamDetailPage({
       <SiteHeader />
       <section className="bg-navy py-16 text-white">
         <div className="mx-auto max-w-4xl px-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-gold">
-            {team.ageGroup}
-          </p>
-          <h1 className="display mt-4 text-5xl font-semibold">{team.name}</h1>
-          {team.director && (
-            <p className="mt-2 text-white/70">
-              Director: {team.director.name} · {team.director.region}
-            </p>
-          )}
+          <div className="flex items-center gap-6">
+            {team.logoUrl && (
+              <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-sm border border-white/20">
+                <Image src={team.logoUrl} alt={team.name} fill className="object-cover" />
+              </div>
+            )}
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-gold">
+                {team.ageGroup}
+              </p>
+              <h1 className="display mt-4 text-5xl font-semibold">{team.name}</h1>
+              {team.director && (
+                <p className="mt-2 text-white/70">
+                  Director: {team.director.name} - {team.director.region}
+                </p>
+              )}
+            </div>
+          </div>
+          <Link
+            href={`/teams/${team.id}/manage`}
+            className="mt-6 inline-block rounded-sm border border-white/30 px-5 py-2 text-sm font-semibold hover:border-white"
+          >
+            Manage this team
+          </Link>
         </div>
       </section>
 
@@ -53,7 +70,7 @@ export default async function TeamDetailPage({
               Home
             </p>
             <p className="mt-1 font-semibold">
-              {team.homeCity ? `${team.homeCity}, ${team.homeState}` : "—"}
+              {team.homeCity ? `${team.homeCity}, ${team.homeState}` : "-"}
             </p>
           </div>
         </div>
@@ -82,10 +99,10 @@ export default async function TeamDetailPage({
                     {player.firstName} {player.lastName}
                   </td>
                   <td className="py-2 text-ink/70">
-                    {player.jerseyNumber ?? "—"}
+                    {player.jerseyNumber ?? "-"}
                   </td>
                   <td className="py-2 text-ink/70">
-                    {player.position ?? "—"}
+                    {player.position ?? "-"}
                   </td>
                   <td className="py-2 text-xs uppercase text-ink/60">
                     {player.backgroundCheckStatus}
