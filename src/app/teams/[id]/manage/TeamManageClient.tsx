@@ -175,7 +175,9 @@ export default function TeamManageClient({
 
           {activeTab === "Staff" && <StaffTab teamId={team.id} initialStaff={staff} />}
 
-          {activeTab === "Players" && <PlayersTab initialPlayers={players} />}
+          {activeTab === "Players" && (
+            <PlayersTab teamId={team.id} initialPlayers={players} />
+          )}
 
           {activeTab === "Documents" && (
             <DocumentsTab teamId={team.id} initialDocuments={documents} />
@@ -374,7 +376,25 @@ function StaffTab({
   );
 }
 
-function PlayersTab({ initialPlayers }: { initialPlayers: PlayerRow[] }) {
+function PlayersTab({
+  teamId,
+  initialPlayers,
+}: {
+  teamId: string;
+  initialPlayers: PlayerRow[];
+}) {
+  const [copied, setCopied] = useState(false);
+  const joinUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/teams/${teamId}/join`
+      : `/teams/${teamId}/join`;
+
+  function handleCopy() {
+    navigator.clipboard.writeText(joinUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   const [playerList, setPlayerList] = useState(initialPlayers);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -395,6 +415,25 @@ function PlayersTab({ initialPlayers }: { initialPlayers: PlayerRow[] }) {
 
   return (
     <div className="rounded-sm border border-steel/20 bg-white p-6">
+      <div className="mb-6 rounded-sm border border-gold/40 bg-gold/10 p-4">
+        <p className="text-sm font-semibold">
+          Send this link to parents so they can add their athlete directly:
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            readOnly
+            value={joinUrl}
+            className="flex-1 rounded-sm border border-steel/40 bg-white px-3 py-2 text-xs"
+          />
+          <button
+            onClick={handleCopy}
+            className="rounded-sm bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-deep"
+          >
+            {copied ? "Copied!" : "Copy link"}
+          </button>
+        </div>
+      </div>
+
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-steel/30 text-left text-ink/50">

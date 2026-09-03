@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSession, signOut } from "next-auth/react";
 
 const tournamentLinks = [
   { href: "/tournaments", label: "All tournaments" },
@@ -16,7 +17,9 @@ const tournamentLinks = [
 const toolsLinks = [
   { href: "/coaches-corner", label: "Coach's corner" },
   { href: "/age-chart", label: "Age chart" },
+  // TODO: replace with the real Team Insurance partner link
   { href: "#", label: "Team insurance" },
+  // TODO: replace with the real Background Check registration link
   { href: "#", label: "Background check" },
   { href: "/rules", label: "BASE official rules" },
   { href: "/directors", label: "Director recruitment" },
@@ -31,6 +34,7 @@ const allMobileLinks = [
 ];
 
 export default function SiteHeader() {
+  const { data: session } = useSession();
   const [tournamentsOpen, setTournamentsOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -148,12 +152,30 @@ export default function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-4">
-          <Link
-            href="/login"
-            className="hidden text-sm text-white/80 hover:text-white sm:block"
-          >
-            Log in
-          </Link>
+          {session ? (
+            <>
+              <Link
+                href="/account"
+                className="hidden text-sm text-white/80 hover:text-white sm:block"
+              >
+                {session.user.name?.split(" ")[0] ?? "My account"}
+              </Link>
+              <button
+                type="button"
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="hidden text-sm text-white/60 underline hover:text-white sm:block"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="hidden text-sm text-white/80 hover:text-white sm:block"
+            >
+              Log in
+            </Link>
+          )}
           <Link
             href="/tournaments"
             className="rounded-sm bg-red px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-dark"
@@ -192,13 +214,35 @@ export default function SiteHeader() {
               {link.label}
             </Link>
           ))}
-          <Link
-            href="/login"
-            onClick={() => setMobileOpen(false)}
-            className="block py-2 text-sm text-white/80 hover:text-gold"
-          >
-            Log in
-          </Link>
+          {session ? (
+            <>
+              <Link
+                href="/account"
+                onClick={() => setMobileOpen(false)}
+                className="block py-2 text-sm text-white/80 hover:text-gold"
+              >
+                {session.user.name?.split(" ")[0] ?? "My account"}
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  signOut({ callbackUrl: "/" });
+                }}
+                className="block py-2 text-sm text-white/60 hover:text-gold"
+              >
+                Log out
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              onClick={() => setMobileOpen(false)}
+              className="block py-2 text-sm text-white/80 hover:text-gold"
+            >
+              Log in
+            </Link>
+          )}
         </nav>
       )}
     </header>
