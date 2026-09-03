@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { auth } from "@/auth";
 import StatusSelect from "@/components/admin/StatusSelect";
 import MarkHandledButton from "@/components/admin/MarkHandledButton";
 
 export const dynamic = "force-dynamic";
 
-// NOTE: this route has no auth check yet -- wire up real admin auth
-// (Clerk/Auth.js with a role claim) before this goes anywhere near
-// production. It's scaffolded here so the UI shape exists.
+// Protected by middleware.ts: requires either the legacy shared admin
+// password or a logged-in user with role ADMIN.
 export default async function AdminPage() {
+  const session = await auth();
   const [tournaments, directors, teams, unhandledContacts] = await Promise.all([
     prisma.tournament.findMany({
       orderBy: { startDate: "asc" },
@@ -29,12 +30,22 @@ export default async function AdminPage() {
     <div className="min-h-screen bg-cream">
       <header className="flex items-center justify-between bg-navy px-6 py-5 text-white">
         <h1 className="display text-2xl">BASE Admin</h1>
-        {unhandledContacts.length > 0 && (
-          <span className="rounded-sm bg-red px-3 py-1 text-xs font-semibold">
-            {unhandledContacts.length} new message
-            {unhandledContacts.length === 1 ? "" : "s"}
-          </span>
-        )}
+        <div className="flex items-center gap-4">
+          {session?.user.isSuperAdmin && (
+            <Link
+              href="/admin/admins"
+              className="text-sm text-white/70 underline hover:text-white"
+            >
+              Manage admins
+            </Link>
+          )}
+          {unhandledContacts.length > 0 && (
+            <span className="rounded-sm bg-red px-3 py-1 text-xs font-semibold">
+              {unhandledContacts.length} new message
+              {unhandledContacts.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
       </header>
 
       <div className="mx-auto max-w-6xl space-y-14 px-6 py-10">

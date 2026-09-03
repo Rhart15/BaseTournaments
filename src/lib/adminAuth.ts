@@ -1,16 +1,12 @@
 import { cookies } from "next/headers";
+import { auth } from "@/auth";
 
-// Lightweight admin gate: a single shared password (ADMIN_PASSWORD env var)
-// protects /admin and the score-entry API. This is intentionally simple so
-// the site is safe to hand to one or two BASE staff immediately.
-//
-// UPGRADE BEFORE REAL LAUNCH: swap this for Clerk or Auth.js with per-user
-// accounts and a role claim once more than one or two staff need access,
-// so you get individual logins, audit trails, and easy revocation.
-//
-// Uses Web Crypto (globalThis.crypto.subtle) rather than Node's `crypto`
-// module so the same code works in both the Node API routes and the Edge
-// middleware runtime.
+// Admin access is granted by EITHER:
+//   1. The legacy shared password cookie (kept for backward compatibility
+//      during the transition to real accounts), or
+//   2. A real logged-in user whose role is ADMIN.
+// This lets multiple staff have their own individual logins going forward,
+// while not breaking whoever is still using the shared password.
 
 const COOKIE_NAME = "base_admin_session";
 
@@ -24,6 +20,9 @@ export async function expectedToken(): Promise<string> {
 }
 
 export async function isAdminAuthed(): Promise<boolean> {
+  const session = await auth();
+  if (session?.user.role === "ADMIN") return true;
+
   if (!process.env.ADMIN_PASSWORD) return false;
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;

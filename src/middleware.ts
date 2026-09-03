@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getToken } from "next-auth/jwt";
 
 const COOKIE_NAME = "base_admin_session";
 
@@ -13,6 +14,10 @@ async function expectedToken(): Promise<string> {
 
 // Protects every /admin page and the score-entry mutation route. Everything
 // else (public listings, registration, checkout) is intentionally left open.
+//
+// Access is granted by EITHER the legacy shared-password cookie, or a real
+// logged-in user whose role is ADMIN (read via the JWT session token --
+// this runs on the Edge runtime, so it can't use Prisma/bcrypt directly).
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -21,6 +26,11 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/games/") && pathname.endsWith("/score");
 
   if (!isProtectedPage && !isProtectedApi) {
+    return NextResponse.next();
+  }
+
+  const jwt = await getToken({ req, secret: process.env.AUTH_SECRET });
+  if (jwt?.role === "ADMIN") {
     return NextResponse.next();
   }
 

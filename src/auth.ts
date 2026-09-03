@@ -29,6 +29,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           role: user.role,
+          isSuperAdmin: user.isSuperAdmin,
         };
       },
     }),
@@ -38,6 +39,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
+        token.isSuperAdmin = (user as { isSuperAdmin?: boolean }).isSuperAdmin;
       }
       return token;
     },
@@ -45,6 +47,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.isSuperAdmin = Boolean(token.isSuperAdmin);
       }
       return session;
     },
