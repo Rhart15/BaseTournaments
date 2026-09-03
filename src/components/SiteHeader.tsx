@@ -17,9 +17,7 @@ const tournamentLinks = [
 const toolsLinks = [
   { href: "/coaches-corner", label: "Coach's corner" },
   { href: "/age-chart", label: "Age chart" },
-  // TODO: replace with the real Team Insurance partner link
   { href: "#", label: "Team insurance" },
-  // TODO: replace with the real Background Check registration link
   { href: "#", label: "Background check" },
   { href: "/rules", label: "BASE official rules" },
   { href: "/directors", label: "Director recruitment" },
@@ -60,7 +58,7 @@ export default function SiteHeader() {
 
   return (
     <header className="relative bg-navy text-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
           <Image
             src="/brand/base-logo.png"
@@ -151,7 +149,7 @@ export default function SiteHeader() {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-shrink-0 items-center gap-4">
           {session ? (
             <>
               <Link
