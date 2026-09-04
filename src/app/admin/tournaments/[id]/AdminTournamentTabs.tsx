@@ -134,7 +134,7 @@ export default function AdminTournamentTabs({
                         ) : (
                           <>
                             <Link
-                              href={`/tournaments/${tournamentId}/divisions/${division.id}/bracket`}
+                              href={`/tournaments/${tournamentId}/divisions/${division.id}?tab=brackets`}
                               className="text-sm font-semibold text-red hover:text-red-dark"
                             >
                               View public bracket {"->"}

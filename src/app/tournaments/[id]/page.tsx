@@ -65,7 +65,15 @@ export default async function TournamentDetailPage({
                 key={d.id}
                 className="flex justify-between border-b border-steel/20 py-2 text-sm"
               >
-                <span>{d.label}</span>
+                <Link
+                  href={`/tournaments/${tournament.id}/divisions/${d.id}`}
+                  className="font-semibold hover:text-red"
+                >
+                  {d.label}
+                </Link>
+                <span className="text-xs uppercase text-ink/50">
+                  Schedule - Standings - Results - Brackets
+                </span>
               </li>
             ))}
             {tournament.divisions.length === 0 && (
