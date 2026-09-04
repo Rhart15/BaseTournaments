@@ -567,26 +567,10 @@ function PlayersTab({
   }
 
   const [playerList, setPlayerList] = useState(initialPlayers);
-  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editJersey, setEditJersey] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-
-  async function handleUploadCheck(playerId: string, file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch(`/api/players/${playerId}/background-check`, {
-      method: "POST",
-      body: formData,
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setPlayerList((prev) =>
-        prev.map((p) => (p.id === playerId ? { ...p, ...data.player } : p))
-      );
-    }
-  }
 
   function startEdit(p: PlayerRow) {
     setEditingId(p.id);
@@ -645,7 +629,6 @@ function PlayersTab({
             <th className="py-2">Name</th>
             <th>#</th>
             <th>Position</th>
-            <th>Background check</th>
             <th></th>
           </tr>
         </thead>
@@ -678,37 +661,6 @@ function PlayersTab({
                   <td>{p.position ?? "-"}</td>
                 </>
               )}
-              <td>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`h-2 w-2 rounded-full ${
-                      p.backgroundCheckStatus === "APPROVED"
-                        ? "bg-green-600"
-                        : p.backgroundCheckStatus === "SUBMITTED"
-                        ? "bg-gold"
-                        : "bg-steel/40"
-                    }`}
-                  />
-                  <button
-                    onClick={() => fileInputs.current[p.id]?.click()}
-                    className="text-xs font-semibold text-red hover:text-red-dark"
-                  >
-                    {p.backgroundCheckFileName ? "Replace" : "Upload"}
-                  </button>
-                  <input
-                    ref={(el) => {
-                      fileInputs.current[p.id] = el;
-                    }}
-                    type="file"
-                    accept="application/pdf,image/jpeg,image/png"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUploadCheck(p.id, file);
-                    }}
-                  />
-                </div>
-              </td>
               <td className="text-right">
                 {editingId === p.id ? (
                   <div className="flex justify-end gap-2">
@@ -747,7 +699,7 @@ function PlayersTab({
           ))}
           {playerList.length === 0 && (
             <tr>
-              <td colSpan={5} className="py-6 text-center text-ink/50">
+              <td colSpan={4} className="py-6 text-center text-ink/50">
                 No players on this roster yet.
               </td>
             </tr>
