@@ -32,7 +32,21 @@ export default async function AdminPage() {
   return (
     <div className="min-h-screen bg-cream">
       <header className="flex items-center justify-between bg-navy px-6 py-5 text-white">
-        <h1 className="display text-2xl">BASE Admin</h1>
+        <div className="flex items-center gap-6">
+          <h1 className="display text-2xl">BASE Admin</h1>
+          <Link
+            href="/"
+            className="text-sm text-white/70 underline hover:text-white"
+          >
+            View site
+          </Link>
+          <Link
+            href="/account"
+            className="text-sm text-white/70 underline hover:text-white"
+          >
+            My account
+          </Link>
+        </div>
         <div className="flex items-center gap-4">
           {session?.user.isSuperAdmin && (
             <Link
