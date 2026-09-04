@@ -3,17 +3,25 @@ import { isAdminAuthed } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 // One-click cleanup for everything created while testing the bracket
-// system: any Division whose label contains "test", plus any standalone
-// Team or Registration whose name looks like test data (created via the
-// admin test-teams endpoint, which always prefixes names with "Test ").
-// Deletes in dependency order since none of these relations cascade.
+// system. A division is treated as test data if its label contains any
+// of a few known testing-only naming patterns -- real youth divisions
+// are never named things like "10U-DblElim" or "PlayIn", so this is
+// safe. Deletes each matched division's games, registrations, and pools
+// together (in dependency order, since none of these relations
+// cascade) so nothing is ever left half-deleted or orphaned.
+const TEST_DIVISION_PATTERNS = ["test", "dblelim", "playin"];
+
 export async function POST() {
   if (!(await isAdminAuthed())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const testDivisions: { id: string; label: string }[] = await prisma.division.findMany({
-    where: { label: { contains: "test", mode: "insensitive" } },
+    where: {
+      OR: TEST_DIVISION_PATTERNS.map((pattern) => ({
+        label: { contains: pattern, mode: "insensitive" as const },
+      })),
+    },
     select: { id: true, label: true },
   });
   const testDivisionIds = testDivisions.map((d: { id: string }) => d.id);
@@ -42,13 +50,6 @@ export async function POST() {
       where: { id: { in: testDivisionIds } },
     });
   }
-
-  // Any leftover registrations with a "Test " team name outside a test
-  // division (shouldn't normally happen, but cleans up stragglers).
-  const strayRegs = await prisma.registration.deleteMany({
-    where: { teamName: { startsWith: "Test ", mode: "insensitive" } },
-  });
-  registrationsDeleted += strayRegs.count;
 
   // Standalone Team rows created for testing (e.g. "Test Warriors").
   const testTeams: { id: string }[] = await prisma.team.findMany({
