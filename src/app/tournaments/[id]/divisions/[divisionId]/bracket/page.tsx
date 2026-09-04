@@ -1,5 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import BracketTree from "@/components/BracketTree";
 import { prisma } from "@/lib/db";
 import { seedFromPoolStandings } from "@/lib/brackets";
 import { auth } from "@/auth";
@@ -103,36 +104,7 @@ export default async function BracketPage({
                 are final.
               </p>
             ) : (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {division.games.map((game) => (
-                  <div
-                    key={game.id}
-                    className="rounded-sm border border-steel/30 bg-white p-4 text-sm"
-                  >
-                    <div className="text-xs uppercase tracking-wide text-red">
-                      {game.round ?? "Bracket game"}
-                    </div>
-                    <div className="mt-2 flex justify-between">
-                      <span>{game.homeTeam?.teamName ?? "TBD"}</span>
-                      <span className="font-semibold">{game.homeScore ?? "-"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>{game.awayTeam?.teamName ?? "TBD"}</span>
-                      <span className="font-semibold">{game.awayScore ?? "-"}</span>
-                    </div>
-                    <div className="mt-2 text-xs text-ink/50">
-                      {game.fieldName ?? "Field TBD"} ·{" "}
-                      {game.startTime
-                        ? new Date(game.startTime).toLocaleString("en-US", {
-                            weekday: "short",
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })
-                        : "Time TBD"}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <BracketTree games={division.games} />
             )}
           </>
         )}

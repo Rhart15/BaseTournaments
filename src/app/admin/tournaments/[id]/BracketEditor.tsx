@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Game, Registration } from "@prisma/client";
+import BracketTree from "@/components/BracketTree";
 
 type GameWithTeams = Game & {
   homeTeam: Registration | null;
@@ -24,8 +25,6 @@ export default function BracketEditor({
   const router = useRouter();
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const rounds = Array.from(new Set(games.map((g) => g.round ?? "Round")));
 
   async function handleDrop(target: DragPayload, e: React.DragEvent) {
     e.preventDefault();
@@ -112,89 +111,16 @@ export default function BracketEditor({
 
       {error && <p className="mb-3 text-xs text-red">{error}</p>}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {rounds.map((round) => (
-          <div key={round}>
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink/50">
-              {round}
-            </div>
-            <div className="space-y-3">
-              {games
-                .filter((g) => (g.round ?? "Round") === round)
-                .map((game) => (
-                  <div
-                    key={game.id}
-                    className="rounded-sm border border-steel/30 p-2 text-sm"
-                  >
-                    <Slot
-                      game={game}
-                      side="home"
-                      onDrop={handleDrop}
-                      locked={isRealFinal(game)}
-                    />
-                    <Slot
-                      game={game}
-                      side="away"
-                      onDrop={handleDrop}
-                      locked={isRealFinal(game)}
-                    />
-                  </div>
-                ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      <BracketTree
+        games={games}
+        interactive
+        onDrop={handleDrop}
+        isLocked={isRealFinal}
+      />
     </div>
   );
 }
 
 function isRealFinal(game: GameWithTeams) {
   return game.status === "FINAL" && Boolean(game.homeTeamId) && Boolean(game.awayTeamId);
-}
-
-function Slot({
-  game,
-  side,
-  onDrop,
-  locked,
-}: {
-  game: GameWithTeams;
-  side: Side;
-  onDrop: (target: DragPayload, e: React.DragEvent) => void;
-  locked: boolean;
-}) {
-  const team = side === "home" ? game.homeTeam : game.awayTeam;
-  const draggable = Boolean(team) && !locked;
-
-  return (
-    <div
-      draggable={draggable}
-      onDragStart={(e) => {
-        e.dataTransfer.setData(
-          "text/plain",
-          JSON.stringify({ gameId: game.id, side })
-        );
-      }}
-      onDragOver={(e) => {
-        if (!locked) e.preventDefault();
-      }}
-      onDrop={(e) => {
-        if (!locked) onDrop({ gameId: game.id, side }, e);
-      }}
-      className={`flex items-center justify-between rounded-sm px-2 py-1.5 ${
-        team
-          ? draggable
-            ? "cursor-move bg-cream hover:bg-gold/20"
-            : "bg-cream/60 text-ink/50"
-          : "text-ink/30"
-      }`}
-    >
-      <span>{team?.teamName ?? "TBD"}</span>
-      {isRealFinal(game) && (
-        <span className="text-xs font-semibold">
-          {side === "home" ? game.homeScore : game.awayScore}
-        </span>
-      )}
-    </div>
-  );
 }
