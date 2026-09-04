@@ -11,6 +11,7 @@ import FinalizeResultsButton from "./FinalizeResultsButton";
 import PoolScheduleSetup from "./PoolScheduleSetup";
 import BracketEditor from "./BracketEditor";
 import BracketFormatSettings from "./BracketFormatSettings";
+import ResetBracketButton from "@/components/admin/ResetBracketButton";
 
 type GameWithTeams = Game & {
   homeTeam: Registration | null;
@@ -144,6 +145,7 @@ export default function AdminTournamentTabs({
                               disabled={!canFinalize}
                               alreadyFinalized={division.resultsFinalized}
                             />
+                            <ResetBracketButton divisionId={division.id} />
                           </>
                         )}
                       </div>
