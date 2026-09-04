@@ -23,7 +23,8 @@ export default function CleanupTestDataButton() {
       const data = await res.json();
       setResult(
         `Removed ${data.divisionsDeleted} division(s), ${data.gamesDeleted} game(s), ` +
-          `${data.registrationsDeleted} registration(s), and ${data.teamsDeleted} team(s).`
+          `${data.registrationsDeleted} registration(s), and ${data.teamsDeleted} team(s). ` +
+          `Repaired ${data.orphanedGamesRepaired} orphaned game(s).`
       );
       router.refresh();
     } else {

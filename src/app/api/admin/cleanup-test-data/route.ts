@@ -51,6 +51,18 @@ export async function POST() {
     });
   }
 
+  // Repair pass: a FINAL game with no team on either side is never
+  // legitimate (a real bye always leaves one side filled, and a
+  // genuinely still-pending game stays SCHEDULED) -- it can only be
+  // wreckage left behind when the teams it referenced were deleted out
+  // from under it. This is safe to clean up in ANY division, including
+  // real (non-test-named) ones, since an earlier version of this tool
+  // could have caused exactly that by deleting "Test "-named teams
+  // wherever they appeared, not just inside test divisions.
+  const orphanedGames = await prisma.game.deleteMany({
+    where: { status: "FINAL", homeTeamId: null, awayTeamId: null },
+  });
+
   // Standalone Team rows created for testing (e.g. "Test Warriors").
   const testTeams: { id: string }[] = await prisma.team.findMany({
     where: { name: { contains: "test", mode: "insensitive" } },
@@ -76,6 +88,7 @@ export async function POST() {
     divisionsDeleted: testDivisionIds.length,
     divisionLabels: testDivisions.map((d: { label: string }) => d.label),
     gamesDeleted,
+    orphanedGamesRepaired: orphanedGames.count,
     registrationsDeleted,
     poolsDeleted,
     teamsDeleted,
