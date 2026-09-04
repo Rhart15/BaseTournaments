@@ -21,6 +21,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid score" }, { status: 400 });
   }
 
+  // Advancement (pushing a winner/loser into the next game slot) must
+  // only ever happen once per game -- re-saving an already-FINAL game
+  // (a correction, a double click, a retry) would otherwise push the
+  // same team into the next open slot a second time, landing it on
+  // top of whoever is actually supposed to be there.
+  const existing = await prisma.game.findUnique({ where: { id } });
+  const isFirstFinalization = existing?.status !== "FINAL";
+
   const game = await prisma.game.update({
     where: { id },
     data: {
@@ -30,6 +38,12 @@ export async function PATCH(
     },
     include: { homeTeam: true, awayTeam: true },
   });
+
+  if (!isFirstFinalization) {
+    // Score corrected after the fact -- leave standings and bracket
+    // advancement alone; only the score itself changes.
+    return NextResponse.json({ game });
+  }
 
   // Pool-stage games roll into each team's standing record so seeding
   // reflects the result immediately.
