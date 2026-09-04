@@ -152,6 +152,14 @@ export default function SiteHeader() {
         <div className="flex flex-shrink-0 items-center gap-4">
           {session ? (
             <>
+              {session.user.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  className="hidden text-sm font-semibold text-gold hover:text-white sm:block"
+                >
+                  Admin
+                </Link>
+              )}
               <Link
                 href="/account"
                 className="hidden text-sm text-white/80 hover:text-white sm:block"
@@ -214,6 +222,15 @@ export default function SiteHeader() {
           ))}
           {session ? (
             <>
+              {session.user.role === "ADMIN" && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileOpen(false)}
+                  className="block py-2 text-sm font-semibold text-gold hover:text-white"
+                >
+                  Admin
+                </Link>
+              )}
               <Link
                 href="/account"
                 onClick={() => setMobileOpen(false)}
