@@ -21,9 +21,9 @@ type Side = "home" | "away";
 type DragPayload = { gameId: string; side: Side };
 
 const CARD_W = 190;
-const CARD_H = 78;
+const CARD_H = 90;
 const GAP_X = 56;
-const UNIT = 90; // vertical space per leaf (round-1) match
+const UNIT = 106; // vertical space per leaf (round-1) match
 
 /**
  * Groups games into left-to-right rounds and works out each game's
