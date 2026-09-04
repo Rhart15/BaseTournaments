@@ -15,10 +15,28 @@ export default async function TeamDetailPage({
   const { id } = await params;
   const team = await prisma.team.findUnique({
     where: { id },
-    include: { director: true, players: { orderBy: { lastName: "asc" } } },
+    include: {
+      director: true,
+      players: { orderBy: { lastName: "asc" } },
+      registrations: { include: { tournament: true } },
+    },
   });
 
   if (!team) notFound();
+
+  const stats = team.registrations.reduce(
+    (acc, r) => {
+      acc.wins += r.poolWins + r.bracketWins;
+      acc.losses += r.poolLosses + r.bracketLosses;
+      acc.runsFor += r.runsFor;
+      acc.runsAgainst += r.runsAgainst;
+      return acc;
+    },
+    { wins: 0, losses: 0, runsFor: 0, runsAgainst: 0 }
+  );
+  const gamesPlayed = stats.wins + stats.losses;
+  const winPct = gamesPlayed > 0 ? stats.wins / gamesPlayed : 0;
+  const tournamentsPlayed = team.registrations.length;
 
   return (
     <>
@@ -74,6 +92,86 @@ export default async function TeamDetailPage({
             </p>
           </div>
         </div>
+
+        <div className="seam-divider my-10" />
+
+        <h2 className="display text-xl">
+          Record{" "}
+          <span className="text-sm font-normal text-ink/50">
+            (all tournaments - {tournamentsPlayed} played)
+          </span>
+        </h2>
+        <div className="mt-4 grid gap-6 sm:grid-cols-2">
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b border-steel/15">
+                <td className="py-2 text-ink/60">W-L</td>
+                <td className="py-2 text-right font-semibold">
+                  {stats.wins}-{stats.losses}
+                </td>
+              </tr>
+              <tr className="border-b border-steel/15">
+                <td className="py-2 text-ink/60">Win %</td>
+                <td className="py-2 text-right font-semibold">
+                  {(winPct * 100).toFixed(0)}%
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr className="border-b border-steel/15">
+                <td className="py-2 text-ink/60">Runs scored</td>
+                <td className="py-2 text-right font-semibold">{stats.runsFor}</td>
+              </tr>
+              <tr className="border-b border-steel/15">
+                <td className="py-2 text-ink/60">Runs allowed</td>
+                <td className="py-2 text-right font-semibold">{stats.runsAgainst}</td>
+              </tr>
+              <tr className="border-b border-steel/15">
+                <td className="py-2 text-ink/60">Run difference</td>
+                <td className="py-2 text-right font-semibold">
+                  {stats.runsFor - stats.runsAgainst}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {team.registrations.length > 0 && (
+          <>
+            <h2 className="display mt-10 text-xl">Tournament history</h2>
+            <table className="mt-4 w-full text-sm">
+              <thead>
+                <tr className="border-b border-steel/30 text-left text-ink/60">
+                  <th className="pb-2 font-medium">Tournament</th>
+                  <th className="pb-2 font-medium">Record</th>
+                  <th className="pb-2 font-medium">Placement</th>
+                </tr>
+              </thead>
+              <tbody>
+                {team.registrations.map((r) => (
+                  <tr key={r.id} className="border-b border-steel/10">
+                    <td className="py-2">
+                      <Link
+                        href={`/tournaments/${r.tournamentId}`}
+                        className="font-semibold hover:text-red"
+                      >
+                        {r.tournament.name}
+                      </Link>
+                    </td>
+                    <td className="py-2 text-ink/70">
+                      {r.poolWins + r.bracketWins}-{r.poolLosses + r.bracketLosses}
+                    </td>
+                    <td className="py-2 text-ink/70">
+                      {r.finalPlacement ?? "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
 
         <div className="seam-divider my-10" />
 

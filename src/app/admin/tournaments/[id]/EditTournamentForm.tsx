@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Division = { id: string; label: string };
+type Division = { id: string; label: string; teamCap?: number | null };
 
 export default function EditTournamentForm({
   tournamentId,
@@ -30,6 +30,7 @@ export default function EditTournamentForm({
   const [saved, setSaved] = useState(false);
   const [divisionList, setDivisionList] = useState(divisions);
   const [newDivision, setNewDivision] = useState("");
+  const [newDivisionCap, setNewDivisionCap] = useState("");
   const [addingDivision, setAddingDivision] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
@@ -80,7 +81,10 @@ export default function EditTournamentForm({
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: newDivision.trim() }),
+        body: JSON.stringify({
+          label: newDivision.trim(),
+          teamCap: newDivisionCap ? Number(newDivisionCap) : null,
+        }),
       }
     );
 
@@ -88,8 +92,22 @@ export default function EditTournamentForm({
       const data = await res.json();
       setDivisionList((prev) => [...prev, data.division]);
       setNewDivision("");
+      setNewDivisionCap("");
     }
     setAddingDivision(false);
+  }
+
+  async function handleUpdateDivisionCap(id: string, teamCap: string) {
+    setDivisionList((prev) =>
+      prev.map((d) =>
+        d.id === id ? { ...d, teamCap: teamCap ? Number(teamCap) : null } : d
+      )
+    );
+    await fetch(`/api/admin/divisions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamCap: teamCap ? Number(teamCap) : null }),
+    });
   }
 
   async function handleRemoveDivision(id: string) {
@@ -228,6 +246,15 @@ export default function EditTournamentForm({
               className="flex items-center gap-2 rounded-sm bg-cream px-3 py-1 text-sm"
             >
               {d.label}
+              <input
+                type="number"
+                min={0}
+                defaultValue={d.teamCap ?? ""}
+                placeholder="Uncapped"
+                onBlur={(e) => handleUpdateDivisionCap(d.id, e.target.value)}
+                className="w-20 rounded-sm border border-steel/40 px-1.5 py-0.5 text-xs"
+                title="Team cap for this division (blank = uncapped)"
+              />
               <button
                 onClick={() => handleRemoveDivision(d.id)}
                 disabled={removingId === d.id}
@@ -248,6 +275,14 @@ export default function EditTournamentForm({
             onChange={(e) => setNewDivision(e.target.value)}
             placeholder="e.g. 14U"
             className="rounded-sm border border-steel/40 px-3 py-2 text-sm"
+          />
+          <input
+            type="number"
+            min={0}
+            value={newDivisionCap}
+            onChange={(e) => setNewDivisionCap(e.target.value)}
+            placeholder="Team cap (optional)"
+            className="w-36 rounded-sm border border-steel/40 px-3 py-2 text-sm"
           />
           <button
             type="submit"

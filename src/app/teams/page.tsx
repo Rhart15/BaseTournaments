@@ -1,21 +1,14 @@
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
-import Link from "next/link";
+import TeamsDirectory from "@/components/TeamsDirectory";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-const statusColor: Record<string, string> = {
-  PENDING: "text-ink/50",
-  SUBMITTED: "text-gold",
-  APPROVED: "text-green-700",
-  EXPIRED: "text-red",
-};
-
 export default async function TeamsPage() {
   const teams = await prisma.team.findMany({
     orderBy: { name: "asc" },
-    include: { director: true, _count: { select: { players: true } } },
+    include: { director: true },
   });
 
   return (
@@ -36,46 +29,16 @@ export default async function TeamsPage() {
             No teams have registered yet.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-steel/30 text-left text-ink/60">
-                  <th className="pb-2 font-medium">Team</th>
-                  <th className="pb-2 font-medium">Division</th>
-                  <th className="pb-2 font-medium">Director</th>
-                  <th className="pb-2 font-medium">Roster</th>
-                  <th className="pb-2 font-medium">Insurance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {teams.map((team) => (
-                  <tr key={team.id} className="border-b border-steel/10">
-                    <td className="py-3 font-semibold">
-                      <Link
-                        href={`/teams/${team.id}`}
-                        className="hover:text-red"
-                      >
-                        {team.name}
-                      </Link>
-                    </td>
-                    <td className="py-3 text-ink/70">{team.ageGroup}</td>
-                    <td className="py-3 text-ink/70">
-                      {team.director?.name ?? "—"}
-                    </td>
-                    <td className="py-3 text-ink/70">
-                      {team._count.players} player
-                      {team._count.players === 1 ? "" : "s"}
-                    </td>
-                    <td
-                      className={`py-3 text-xs font-semibold uppercase ${statusColor[team.insuranceStatus]}`}
-                    >
-                      {team.insuranceStatus}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TeamsDirectory
+            teams={teams.map((t) => ({
+              id: t.id,
+              name: t.name,
+              ageGroup: t.ageGroup,
+              homeCity: t.homeCity,
+              homeState: t.homeState,
+              directorName: t.director?.name ?? null,
+            }))}
+          />
         )}
       </section>
       <SiteFooter />

@@ -25,6 +25,33 @@ export default async function TournamentDetailPage({
   ).length;
   const slotsLeft = tournament.teamCap - slotsTaken;
 
+  const registrationNotYetOpen =
+    tournament.registrationOpensAt && tournament.registrationOpensAt > new Date();
+
+  function divisionStatus(divisionId: string, teamCap: number | null) {
+    if (registrationNotYetOpen) return "Coming Soon";
+    const count = tournament!.registrations.filter(
+      (r) => r.divisionId === divisionId && ["PAID", "PENDING"].includes(r.status)
+    ).length;
+    if (teamCap !== null && count >= teamCap) return "Sold Out";
+    return "Open";
+  }
+
+  const statusStyle: Record<string, string> = {
+    Open: "text-green-700",
+    "Sold Out": "text-red",
+    "Coming Soon": "text-gold",
+  };
+
+  const weatherQuery = encodeURIComponent(
+    `weather ${tournament.venue?.city ?? tournament.city}, ${tournament.state}`
+  );
+  const mapQuery = tournament.venue
+    ? encodeURIComponent(
+        `${tournament.venue.name}, ${tournament.venue.address}, ${tournament.venue.city}, ${tournament.venue.state}`
+      )
+    : encodeURIComponent(`${tournament.city}, ${tournament.state}`);
+
   return (
     <>
       <SiteHeader />
@@ -47,6 +74,14 @@ export default async function TournamentDetailPage({
               day: "numeric",
             })}
           </p>
+          <a
+            href={`https://www.google.com/search?q=${weatherQuery}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-block rounded-sm bg-red px-4 py-2 text-sm font-semibold hover:bg-red-dark"
+          >
+            Weather / Event Updates
+          </a>
         </div>
       </section>
 
@@ -60,22 +95,27 @@ export default async function TournamentDetailPage({
 
           <h2 className="display mt-10 text-2xl">Divisions</h2>
           <ul className="mt-3 space-y-2">
-            {tournament.divisions.map((d) => (
-              <li
-                key={d.id}
-                className="flex justify-between border-b border-steel/20 py-2 text-sm"
-              >
-                <Link
-                  href={`/tournaments/${tournament.id}/divisions/${d.id}`}
-                  className="font-semibold hover:text-red"
+            {tournament.divisions.map((d) => {
+              const status = divisionStatus(d.id, d.teamCap);
+              return (
+                <li
+                  key={d.id}
+                  className="flex justify-between border-b border-steel/20 py-2 text-sm"
                 >
-                  {d.label}
-                </Link>
-                <span className="text-xs uppercase text-ink/50">
-                  Schedule - Standings - Results - Brackets
-                </span>
-              </li>
-            ))}
+                  <Link
+                    href={`/tournaments/${tournament.id}/divisions/${d.id}`}
+                    className="font-semibold hover:text-red"
+                  >
+                    {d.label}
+                  </Link>
+                  <span
+                    className={`text-xs font-semibold uppercase ${statusStyle[status]}`}
+                  >
+                    {status}
+                  </span>
+                </li>
+              );
+            })}
             {tournament.divisions.length === 0 && (
               <li className="text-sm text-ink/50">
                 Divisions will be posted soon.
@@ -108,6 +148,24 @@ export default async function TournamentDetailPage({
               ))}
             </ul>
           )}
+
+          {tournament.venue && (
+            <>
+              <h2 className="display mt-10 text-2xl">Venue</h2>
+              <p className="mt-2 text-sm text-ink/70">
+                {tournament.venue.name} - {tournament.venue.address},{" "}
+                {tournament.venue.city}, {tournament.venue.state}
+              </p>
+              <div className="mt-3 aspect-video w-full overflow-hidden rounded-sm border border-steel/20">
+                <iframe
+                  title="Venue map"
+                  className="h-full w-full"
+                  loading="lazy"
+                  src={`https://www.google.com/maps?q=${mapQuery}&output=embed`}
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="h-fit rounded-sm border border-steel/30 bg-white p-6">
@@ -128,7 +186,7 @@ export default async function TournamentDetailPage({
           </p>
 
           <div className="mt-6">
-            {slotsLeft > 0 && tournament.divisions.length > 0 ? (
+            {slotsLeft > 0 && tournament.divisions.length > 0 && !registrationNotYetOpen ? (
               <RegisterForm
                 tournamentId={tournament.id}
                 divisions={tournament.divisions.map((d) => ({
@@ -141,7 +199,9 @@ export default async function TournamentDetailPage({
                 disabled
                 className="w-full cursor-not-allowed rounded-sm bg-steel/30 px-6 py-3 font-semibold text-ink/50"
               >
-                Registration unavailable
+                {registrationNotYetOpen
+                  ? "Registration opens soon"
+                  : "Registration unavailable"}
               </button>
             )}
           </div>

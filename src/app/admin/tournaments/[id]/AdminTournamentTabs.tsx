@@ -55,7 +55,7 @@ export default function AdminTournamentTabs({
     teamCap: number;
     description: string;
   };
-  editFormDivisions: { id: string; label: string }[];
+  editFormDivisions: { id: string; label: string; teamCap: number | null }[];
   divisions: DivisionData[];
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("Results");

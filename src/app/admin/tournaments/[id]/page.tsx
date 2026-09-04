@@ -66,6 +66,7 @@ export default async function AdminTournamentPage({
       editFormDivisions={tournament.divisions.map((d) => ({
         id: d.id,
         label: d.label,
+        teamCap: d.teamCap,
       }))}
       divisions={divisions}
     />

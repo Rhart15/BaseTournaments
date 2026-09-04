@@ -10,6 +10,7 @@ type Params = {
   division?: string;
   state?: string;
   q?: string;
+  when?: string;
 };
 
 const heroCopy = {
@@ -43,21 +44,27 @@ export default async function TournamentsView({
     include: { venue: true, registrations: true, divisions: true },
   });
 
+  const isPast = params.when === "past";
+  const now = new Date();
+  const dateFiltered = tournaments.filter((t) =>
+    isPast ? t.endDate < now : t.endDate >= now
+  );
+
   const months = Array.from(
     new Set<string>(
-      tournaments.map((t) =>
+      dateFiltered.map((t) =>
         t.startDate.toLocaleDateString("en-US", { month: "long" })
       )
     )
   );
   const divisions: string[] = Array.from(
-    new Set<string>(tournaments.flatMap((t) => t.divisions.map((d) => d.label)))
+    new Set<string>(dateFiltered.flatMap((t) => t.divisions.map((d) => d.label)))
   ).sort();
   const states: string[] = Array.from(
-    new Set<string>(tournaments.map((t) => t.state))
+    new Set<string>(dateFiltered.map((t) => t.state))
   ).sort();
 
-  const filtered = tournaments.filter((t) => {
+  const filtered = dateFiltered.filter((t) => {
     if (
       params.month &&
       t.startDate.toLocaleDateString("en-US", { month: "long" }) !==
@@ -114,30 +121,45 @@ export default async function TournamentsView({
       <SiteHeader />
       <section className="bg-navy py-14 text-white">
         <div className="mx-auto max-w-6xl px-6">
-          <h1 className="display text-4xl">{hero.title}</h1>
-          <p className="mt-2 text-white/70">{hero.blurb}</p>
+          <h1 className="display text-4xl">
+            {isPast ? "Past results" : hero.title}
+          </h1>
+          <p className="mt-2 text-white/70">
+            {isPast
+              ? "Results and final brackets from completed BASE tournaments."
+              : hero.blurb}
+          </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-6 py-8">
-        <div className="flex flex-wrap gap-3">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              className={`rounded-sm px-5 py-2 text-sm font-semibold text-white transition ${
-                tab.active ? "bg-red-dark" : "bg-red hover:bg-red-dark"
-              }`}
-            >
-              {tab.label}
-            </Link>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-3">
+            {tabs.map((tab) => (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`rounded-sm px-5 py-2 text-sm font-semibold text-white transition ${
+                  tab.active ? "bg-red-dark" : "bg-red hover:bg-red-dark"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+          <Link
+            href={`${basePath}${isPast ? "" : "?when=past"}`}
+            className="rounded-sm border border-steel/40 px-4 py-2 text-sm font-semibold text-ink/70 hover:border-red hover:text-red"
+          >
+            {isPast ? "Upcoming events" : "Past results"}
+          </Link>
         </div>
 
         <form
           action={basePath}
           className="mt-6 flex flex-wrap items-end gap-4 rounded-sm border border-steel/20 bg-cream p-4"
         >
+          {isPast && <input type="hidden" name="when" value="past" />}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-ink/60">
               Month
@@ -213,7 +235,7 @@ export default async function TournamentsView({
           </button>
           {hasActiveFilters && (
             <Link
-              href={basePath}
+              href={isPast ? `${basePath}?when=past` : basePath}
               className="rounded-sm border border-steel/40 px-5 py-2 text-sm font-semibold text-ink/70 hover:border-red hover:text-red"
             >
               Reset
@@ -314,14 +336,23 @@ export default async function TournamentsView({
                         ${(t.entryFeeCents / 100).toFixed(0)}
                       </div>
                       <div className="text-xs text-ink/50">
-                        {isClosed
+                        {isPast
+                          ? "Event completed"
+                          : isClosed
                           ? "Registration closed"
                           : isFull
                           ? "Team cap reached"
                           : `${slotsLeft} of ${t.teamCap} slots open`}
                       </div>
                     </div>
-                    {isFull ? (
+                    {isPast ? (
+                      <Link
+                        href={`/tournaments/${t.id}`}
+                        className="rounded-sm bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-navy-deep"
+                      >
+                        View results
+                      </Link>
+                    ) : isFull ? (
                       <Link
                         href={`/tournaments/${t.id}`}
                         className="rounded-sm bg-steel/40 px-4 py-2 text-sm font-semibold text-white"

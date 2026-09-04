@@ -74,6 +74,7 @@ model Division {
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
   label        String   // e.g. "10U", "12U Gold"
   ageLimit     Int?
+  teamCap      Int?     // optional per-division cap; null means uncapped
 
   pools         Pool[]
   registrations Registration[]

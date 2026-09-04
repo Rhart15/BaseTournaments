@@ -12,7 +12,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await req.json();
-  const { label } = body;
+  const { label, teamCap } = body;
 
   if (!label || !label.trim()) {
     return NextResponse.json(
@@ -22,7 +22,11 @@ export async function POST(
   }
 
   const division = await prisma.division.create({
-    data: { tournamentId: id, label: label.trim() },
+    data: {
+      tournamentId: id,
+      label: label.trim(),
+      teamCap: teamCap ? Number(teamCap) : null,
+    },
   });
 
   return NextResponse.json({ division });
