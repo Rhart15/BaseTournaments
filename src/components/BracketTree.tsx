@@ -21,9 +21,9 @@ type Side = "home" | "away";
 type DragPayload = { gameId: string; side: Side };
 
 const CARD_W = 190;
-const CARD_H = 62;
+const CARD_H = 90;
 const GAP_X = 56;
-const UNIT = 74; // vertical space per leaf (round-1) match
+const UNIT = 106; // vertical space per leaf (round-1) match
 
 /**
  * Groups games into left-to-right rounds and works out each game's
@@ -205,6 +205,11 @@ export default function BracketTree({
                     onDrop={onDrop}
                     locked={isLocked ? isLocked(game) : false}
                   />
+                  {(game.fieldName || game.startTime) && (
+                    <div className="truncate border-t border-steel/15 px-2 py-1 text-[11px] text-ink/50">
+                      {formatFieldTime(game.fieldName, game.startTime)}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -263,4 +268,25 @@ function TreeSlot({
       )}
     </div>
   );
+}
+
+function formatFieldTime(
+  fieldName: string | null | undefined,
+  startTime: string | Date | null | undefined
+): string {
+  const parts: string[] = [];
+  if (fieldName) parts.push(fieldName);
+  if (startTime) {
+    const d = new Date(startTime);
+    if (!isNaN(d.getTime())) {
+      parts.push(
+        d.toLocaleString("en-US", {
+          weekday: "short",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      );
+    }
+  }
+  return parts.join(" - ");
 }
