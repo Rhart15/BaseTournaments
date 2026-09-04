@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { auth } from "@/auth";
-import StatusSelect from "@/components/admin/StatusSelect";
 import MarkHandledButton from "@/components/admin/MarkHandledButton";
+import DirectorRow from "@/components/admin/DirectorRow";
+import AddDirectorForm from "@/components/admin/AddDirectorForm";
+import TeamRow from "@/components/admin/TeamRow";
+import AddTeamForm from "@/components/admin/AddTeamForm";
 
 export const dynamic = "force-dynamic";
 
@@ -111,7 +114,10 @@ export default async function AdminPage() {
 
         {/* Directors */}
         <section>
-          <h2 className="display text-xl">Directors</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="display text-xl">Directors</h2>
+            <AddDirectorForm />
+          </div>
           <table className="mt-6 w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-steel/40 text-left text-ink/50">
@@ -119,34 +125,16 @@ export default async function AdminPage() {
                 <th>Region</th>
                 <th>Sanction fee</th>
                 <th>Background check</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {directors.map((d) => (
-                <tr key={d.id} className="border-b border-steel/15">
-                  <td className="py-3">{d.name}</td>
-                  <td>{d.region}</td>
-                  <td>
-                    <StatusSelect
-                      endpoint={`/api/admin/directors/${d.id}`}
-                      field="sanctionFeePaid"
-                      value={d.sanctionFeePaid ? "true" : "false"}
-                      options={["true", "false"]}
-                    />
-                  </td>
-                  <td>
-                    <StatusSelect
-                      endpoint={`/api/admin/directors/${d.id}`}
-                      field="backgroundCheckStatus"
-                      value={d.backgroundCheckStatus}
-                      options={["PENDING", "SUBMITTED", "APPROVED", "EXPIRED"]}
-                    />
-                  </td>
-                </tr>
+                <DirectorRow key={d.id} director={d} />
               ))}
               {directors.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-6 text-center text-ink/50">
+                  <td colSpan={5} className="py-6 text-center text-ink/50">
                     No directors yet.
                   </td>
                 </tr>
@@ -157,7 +145,10 @@ export default async function AdminPage() {
 
         {/* Teams */}
         <section>
-          <h2 className="display text-xl">Teams</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="display text-xl">Teams</h2>
+            <AddTeamForm directors={directors} />
+          </div>
           <table className="mt-6 w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-steel/40 text-left text-ink/50">
@@ -166,32 +157,31 @@ export default async function AdminPage() {
                 <th>Director</th>
                 <th>Roster size</th>
                 <th>Insurance</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {teams.map((t) => (
-                <tr key={t.id} className="border-b border-steel/15">
-                  <td className="py-3">
-                    <Link href={`/teams/${t.id}`} className="hover:text-red">
-                      {t.name}
-                    </Link>
-                  </td>
-                  <td>{t.ageGroup}</td>
-                  <td>{t.director?.name ?? "-"}</td>
-                  <td>{t._count.players}</td>
-                  <td>
-                    <StatusSelect
-                      endpoint={`/api/admin/teams/${t.id}`}
-                      field="insuranceStatus"
-                      value={t.insuranceStatus}
-                      options={["PENDING", "SUBMITTED", "APPROVED", "EXPIRED"]}
-                    />
-                  </td>
-                </tr>
+                <TeamRow
+                  key={t.id}
+                  team={{
+                    id: t.id,
+                    name: t.name,
+                    ageGroup: t.ageGroup,
+                    organization: t.organization,
+                    homeCity: t.homeCity,
+                    homeState: t.homeState,
+                    directorId: t.directorId,
+                    director: t.director ? { name: t.director.name } : null,
+                    insuranceStatus: t.insuranceStatus,
+                    playerCount: t._count.players,
+                  }}
+                  directors={directors}
+                />
               ))}
               {teams.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-ink/50">
+                  <td colSpan={6} className="py-6 text-center text-ink/50">
                     No teams yet.
                   </td>
                 </tr>
