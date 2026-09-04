@@ -80,6 +80,14 @@ model Division {
   games         Game[]
   resultsFinalized Boolean @default(false)
   bracketPublished Boolean @default(false)
+
+  // Set before bracket generation -- usePoolPlay=false skips the pool
+  // stage entirely and seeds straight from registration order.
+  // gameGuarantee (3 or 4) labels the format; the backside/loser-bracket
+  // mechanics that actually enforce it are a separate, not-yet-built
+  // feature (see /lib/brackets.ts).
+  usePoolPlay      Boolean @default(true)
+  gameGuarantee    Int     @default(3)
 }
 
 model Pool {

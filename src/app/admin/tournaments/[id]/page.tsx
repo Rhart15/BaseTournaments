@@ -36,6 +36,8 @@ export default async function AdminTournamentPage({
       label: division.label,
       resultsFinalized: division.resultsFinalized,
       bracketPublished: division.bracketPublished,
+      usePoolPlay: division.usePoolPlay,
+      gameGuarantee: division.gameGuarantee,
       poolGames,
       bracketGames,
       allPoolGamesFinal,

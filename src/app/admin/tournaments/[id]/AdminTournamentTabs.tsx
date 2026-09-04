@@ -10,6 +10,7 @@ import FlyerUpload from "./FlyerUpload";
 import FinalizeResultsButton from "./FinalizeResultsButton";
 import PoolScheduleSetup from "./PoolScheduleSetup";
 import BracketEditor from "./BracketEditor";
+import BracketFormatSettings from "./BracketFormatSettings";
 
 type GameWithTeams = Game & {
   homeTeam: Registration | null;
@@ -21,6 +22,8 @@ type DivisionData = {
   label: string;
   resultsFinalized: boolean;
   bracketPublished: boolean;
+  usePoolPlay: boolean;
+  gameGuarantee: number;
   poolGames: GameWithTeams[];
   bracketGames: GameWithTeams[];
   allPoolGamesFinal: boolean;
@@ -119,7 +122,11 @@ export default function AdminTournamentTabs({
                         {division.bracketGames.length === 0 ? (
                           <GenerateBracketButton
                             divisionId={division.id}
-                            disabled={!division.allPoolGamesFinal}
+                            disabled={
+                              division.usePoolPlay
+                                ? !division.allPoolGamesFinal
+                                : division.registeredCount < 2
+                            }
                           />
                         ) : (
                           <>
@@ -139,20 +146,34 @@ export default function AdminTournamentTabs({
                       </div>
                     </div>
 
-                    <h3 className="mt-4 text-sm font-semibold text-ink/60">
-                      Pool play games
-                    </h3>
-                    <div className="mt-2 space-y-2">
-                      {division.poolGames.length === 0 && (
-                        <PoolScheduleSetup
+                    {division.bracketGames.length === 0 && (
+                      <div className="mt-4">
+                        <BracketFormatSettings
                           divisionId={division.id}
-                          registeredCount={division.registeredCount}
+                          usePoolPlay={division.usePoolPlay}
+                          gameGuarantee={division.gameGuarantee}
                         />
-                      )}
-                      {division.poolGames.map((game) => (
-                        <ScoreEntry key={game.id} game={game} />
-                      ))}
-                    </div>
+                      </div>
+                    )}
+
+                    {division.usePoolPlay && (
+                      <>
+                        <h3 className="mt-4 text-sm font-semibold text-ink/60">
+                          Pool play games
+                        </h3>
+                        <div className="mt-2 space-y-2">
+                          {division.poolGames.length === 0 && (
+                            <PoolScheduleSetup
+                              divisionId={division.id}
+                              registeredCount={division.registeredCount}
+                            />
+                          )}
+                          {division.poolGames.map((game) => (
+                            <ScoreEntry key={game.id} game={game} />
+                          ))}
+                        </div>
+                      </>
+                    )}
 
                     {division.bracketGames.length > 0 && (
                       <>
