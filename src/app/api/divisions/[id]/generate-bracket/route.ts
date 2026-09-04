@@ -83,13 +83,17 @@ export async function POST(
     round1Pairs.push([teamA, teamB]);
   }
 
-  // Create round 1 (main bracket) games. A slot only stays a true bye
-  // (auto-final) if it's genuinely empty -- with the play-in round
-  // absorbing the overflow, that should only happen if bracketSize
-  // still exceeds teamCount somehow (shouldn't, but kept as a fallback).
+  // Create round 1 (main bracket) games. A slot with a null side only
+  // gets treated as a true bye (auto-final) if nothing is ever coming --
+  // if it's a placeholder waiting on a Play-In winner, it must stay
+  // SCHEDULED instead of getting auto-finalized as a fake bye.
+  const pendingPairIndexes = new Set(placeholderRankToPairIndex.values());
   let currentRoundGameIds: string[] = [];
-  for (const [homeId, awayId] of round1Pairs) {
+  for (let pairIndex = 0; pairIndex < round1Pairs.length; pairIndex++) {
+    const [homeId, awayId] = round1Pairs[pairIndex];
     const bothEmpty = !homeId && !awayId;
+    const isPending = pendingPairIndexes.has(pairIndex);
+    const isTrueBye = !isPending && !bothEmpty && (!homeId || !awayId);
     const game = await prisma.game.create({
       data: {
         divisionId,
@@ -97,9 +101,9 @@ export async function POST(
         round: "Round 1",
         homeTeamId: homeId,
         awayTeamId: awayId,
-        status: bothEmpty || (homeId && awayId) ? "SCHEDULED" : "FINAL",
-        homeScore: homeId && !awayId && !bothEmpty ? 1 : null,
-        awayScore: awayId && !homeId && !bothEmpty ? 1 : null,
+        status: isTrueBye ? "FINAL" : "SCHEDULED",
+        homeScore: isTrueBye && homeId ? 1 : null,
+        awayScore: isTrueBye && awayId ? 1 : null,
       },
     });
     currentRoundGameIds.push(game.id);
