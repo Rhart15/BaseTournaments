@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Game } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 // Called by the admin once a division's bracket is done. Reads the
@@ -22,21 +23,26 @@ export async function POST(
     );
   }
 
-  const championship = games.find((g) => g.round === "Championship");
+  // A Grand Final decides a double-elimination bracket; older
+  // single-elimination brackets (no losers bracket built) fall back to
+  // the Championship game instead.
+  const decidingGame =
+    games.find((g: Game) => g.round === "Grand Final") ??
+    games.find((g: Game) => g.round === "Championship");
 
-  if (!championship || championship.status !== "FINAL") {
+  if (!decidingGame || decidingGame.status !== "FINAL") {
     return NextResponse.json(
-      { error: "Championship game isn't final yet" },
+      { error: "The final game isn't scored yet" },
       { status: 400 }
     );
   }
 
-  const champHome = championship.homeScore ?? 0;
-  const champAway = championship.awayScore ?? 0;
+  const decHome = decidingGame.homeScore ?? 0;
+  const decAway = decidingGame.awayScore ?? 0;
   const championId =
-    champHome > champAway ? championship.homeTeamId : championship.awayTeamId;
+    decHome > decAway ? decidingGame.homeTeamId : decidingGame.awayTeamId;
   const runnerUpId =
-    champHome > champAway ? championship.awayTeamId : championship.homeTeamId;
+    decHome > decAway ? decidingGame.awayTeamId : decidingGame.homeTeamId;
 
   if (championId) {
     await prisma.registration.update({
@@ -51,12 +57,20 @@ export async function POST(
     });
   }
 
-  // Every other completed bracket game: the loser's tournament ended
-  // there, so label them by the round they were eliminated in.
+  // Every other completed bracket game: figure out whether the loser's
+  // tournament actually ended there. In a double-elimination bracket, a
+  // loss in the winners bracket just sends them to the losers bracket
+  // (loserAdvancesToGameId is set) -- that's not elimination. A loss in
+  // the losers bracket, or in a single-elimination bracket with no
+  // losers bracket at all, does end it.
   for (const game of games) {
-    if (game.round === "Championship") continue;
+    if (game.id === decidingGame.id) continue;
     if (game.status !== "FINAL") continue;
     if (!game.homeTeamId || !game.awayTeamId) continue; // bye, not a real loss
+
+    const isLosersBracketGame = (game.round ?? "").startsWith("Losers Round");
+    const sendsLoserOnward = Boolean(game.loserAdvancesToGameId);
+    if (!isLosersBracketGame && sendsLoserOnward) continue; // still alive in the LB
 
     const home = game.homeScore ?? 0;
     const away = game.awayScore ?? 0;

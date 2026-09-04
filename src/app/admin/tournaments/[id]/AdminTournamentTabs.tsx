@@ -107,11 +107,14 @@ export default function AdminTournamentTabs({
               )}
 
               {divisions.map((division) => {
-                const championship = division.bracketGames.find(
-                  (g) => g.round === "Championship"
-                );
+                // Grand Final decides it for a double-elimination bracket;
+                // older single-elimination brackets (no losers bracket)
+                // fall back to the Championship game finishing instead.
+                const finalGame =
+                  division.bracketGames.find((g) => g.round === "Grand Final") ??
+                  division.bracketGames.find((g) => g.round === "Championship");
                 const canFinalize = Boolean(
-                  championship && championship.status === "FINAL"
+                  finalGame && finalGame.status === "FINAL"
                 );
 
                 return (

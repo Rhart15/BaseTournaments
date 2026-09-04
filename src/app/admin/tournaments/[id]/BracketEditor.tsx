@@ -26,6 +26,12 @@ export default function BracketEditor({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const grandFinal = games.find((g) => g.round === "Grand Final") ?? null;
+  const losersGames = games.filter((g) => (g.round ?? "").startsWith("Losers Round"));
+  const winnersGames = games.filter(
+    (g) => g !== grandFinal && !losersGames.includes(g)
+  );
+
   async function handleDrop(target: DragPayload, e: React.DragEvent) {
     e.preventDefault();
     const raw = e.dataTransfer.getData("text/plain");
@@ -111,12 +117,33 @@ export default function BracketEditor({
 
       {error && <p className="mb-3 text-xs text-red">{error}</p>}
 
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-ink/50">
+        Winners bracket
+      </h4>
       <BracketTree
-        games={games}
+        games={winnersGames}
         interactive
         onDrop={handleDrop}
         isLocked={isRealFinal}
       />
+
+      {losersGames.length > 0 && (
+        <>
+          <h4 className="mt-6 text-xs font-semibold uppercase tracking-wide text-ink/50">
+            Losers bracket
+          </h4>
+          <BracketTree games={losersGames} isLocked={isRealFinal} />
+        </>
+      )}
+
+      {grandFinal && (
+        <>
+          <h4 className="mt-6 text-xs font-semibold uppercase tracking-wide text-ink/50">
+            Grand Final
+          </h4>
+          <GrandFinalCard game={grandFinal} />
+        </>
+      )}
     </div>
   );
 }
@@ -125,4 +152,23 @@ export default function BracketEditor({
 // (not the full GameWithTeams shape) so it satisfies the isLocked prop.
 function isRealFinal(game: { status: string; homeTeam: unknown; awayTeam: unknown }) {
   return game.status === "FINAL" && Boolean(game.homeTeam) && Boolean(game.awayTeam);
+}
+
+function GrandFinalCard({ game }: { game: GameWithTeams }) {
+  return (
+    <div className="mt-2 w-56 overflow-hidden rounded-sm border border-steel/30 bg-white text-sm shadow-sm">
+      <div className="flex h-[31px] items-center justify-between border-b border-steel/15 px-2">
+        <span className="truncate">{game.homeTeam?.teamName ?? "TBD"}</span>
+        {game.status === "FINAL" && (
+          <span className="ml-1 shrink-0 text-xs font-semibold">{game.homeScore ?? "-"}</span>
+        )}
+      </div>
+      <div className="flex h-[31px] items-center justify-between px-2">
+        <span className="truncate">{game.awayTeam?.teamName ?? "TBD"}</span>
+        {game.status === "FINAL" && (
+          <span className="ml-1 shrink-0 text-xs font-semibold">{game.awayScore ?? "-"}</span>
+        )}
+      </div>
+    </div>
+  );
 }

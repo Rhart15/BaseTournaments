@@ -96,5 +96,25 @@ export async function PATCH(
     }
   }
 
+  // Double-elimination advancement: push the loser into their losers-
+  // bracket game, same as the winner above.
+  if (game.stage === "BRACKET" && game.loserAdvancesToGameId) {
+    const loserId =
+      parsed.data.homeScore > parsed.data.awayScore
+        ? game.awayTeamId
+        : game.homeTeamId;
+
+    const lbGame = await prisma.game.findUnique({
+      where: { id: game.loserAdvancesToGameId },
+    });
+    if (lbGame && loserId) {
+      const slotField = lbGame.homeTeamId ? "awayTeamId" : "homeTeamId";
+      await prisma.game.update({
+        where: { id: lbGame.id },
+        data: { [slotField]: loserId },
+      });
+    }
+  }
+
   return NextResponse.json({ game });
 }

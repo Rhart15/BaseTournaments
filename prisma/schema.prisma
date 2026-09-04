@@ -174,7 +174,8 @@ model Game {
   awayScore    Int?
   status       GameStatus @default(SCHEDULED)
 
-  advancesToGameId String?  // next game the winner feeds into
+  advancesToGameId String?  // winner of this game feeds into this next game
+  loserAdvancesToGameId String? // loser feeds into this losers-bracket game (double elimination only)
 
   updatedAt    DateTime @updatedAt
 }

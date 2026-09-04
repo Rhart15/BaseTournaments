@@ -132,6 +132,7 @@ export async function POST(
   }
 
   let roundNumber = 2;
+  const wbRoundsGames: string[][] = [currentRoundGameIds];
   while (currentRoundGameIds.length > 1) {
     const nextRoundGameIds: string[] = [];
     const roundLabel =
@@ -162,7 +163,30 @@ export async function POST(
       });
     }
     currentRoundGameIds = nextRoundGameIds;
+    wbRoundsGames.push(currentRoundGameIds);
     roundNumber++;
+  }
+  const championshipGameId = currentRoundGameIds[0];
+
+  // Build the losers bracket (double elimination) so a Round-1 loss
+  // doesn't end a team's tournament -- they get a second life on the
+  // backside, matching the game-guarantee format. Fields with fewer
+  // than 4 teams (after Play-In) stay single elimination since there's
+  // no meaningful losers bracket to build.
+  const lbFinalGameId = await buildLosersBracket(prisma, divisionId, wbRoundsGames);
+
+  if (lbFinalGameId) {
+    const grandFinal = await prisma.game.create({
+      data: { divisionId, stage: "BRACKET", round: "Grand Final", status: "SCHEDULED" },
+    });
+    await prisma.game.update({
+      where: { id: championshipGameId },
+      data: { advancesToGameId: grandFinal.id },
+    });
+    await prisma.game.update({
+      where: { id: lbFinalGameId },
+      data: { advancesToGameId: grandFinal.id },
+    });
   }
 
   // Any genuine byes (fallback case above) are marked FINAL immediately
@@ -171,10 +195,7 @@ export async function POST(
   // any rounds where both feeders were byes).
   await propagateByeAdvancement(prisma, divisionId);
 
-  const totalGames =
-    currentRoundGameIds.length >= 0
-      ? bracketSize - 1 + playInPairs.length
-      : 0;
+  const totalGames = await prisma.game.count({ where: { divisionId, stage: "BRACKET" } });
 
   return NextResponse.json({ ok: true, gamesCreated: totalGames });
 }
@@ -198,6 +219,110 @@ function largestPowerOfTwoAtMost(n: number): number {
   let p = 1;
   while (p * 2 <= n) p *= 2;
   return p;
+}
+
+/**
+ * Builds the losers bracket (double elimination) from the winners
+ * bracket's per-round game lists, wiring loserAdvancesToGameId on each
+ * WB game so the score-entry route can push a losing team into the
+ * right LB slot. Returns the id of the final LB game (whose winner
+ * advances to the Grand Final), or null if the field is too small
+ * (fewer than 4 teams) for a losers bracket to make sense.
+ *
+ * Standard double-elimination shape: LB round 1 pairs up WB round 1's
+ * losers; every "major" round after that pairs the previous LB round's
+ * winners against the next WB round's losers; every "minor" round in
+ * between just pairs the previous LB round's winners against each
+ * other. This is a simple, deterministic seeding (not a fully
+ * rematch-optimized reseed), which is a normal simplification for a
+ * bracket this size -- and there's no "bracket reset" grand final; a
+ * single Grand Final game decides it.
+ */
+async function buildLosersBracket(
+  prisma: import("@prisma/client").PrismaClient,
+  divisionId: string,
+  wbRoundsGames: string[][]
+): Promise<string | null> {
+  const wbRound1 = wbRoundsGames[0];
+  if (wbRound1.length < 2) return null; // fewer than 4 teams total
+
+  // LB round 1: pair up WB round 1's losers.
+  let currentLBGameIds: string[] = [];
+  for (let j = 0; j < wbRound1.length; j += 2) {
+    const game = await prisma.game.create({
+      data: { divisionId, stage: "BRACKET", round: "Losers Round 1", status: "SCHEDULED" },
+    });
+    currentLBGameIds.push(game.id);
+    await prisma.game.update({
+      where: { id: wbRound1[j] },
+      data: { loserAdvancesToGameId: game.id },
+    });
+    await prisma.game.update({
+      where: { id: wbRound1[j + 1] },
+      data: { loserAdvancesToGameId: game.id },
+    });
+  }
+
+  let lbRoundNumber = 2;
+  let wbConsumeIndex = 1; // next WB round (index into wbRoundsGames) whose losers join the LB
+
+  while (currentLBGameIds.length > 1 || wbConsumeIndex < wbRoundsGames.length) {
+    // Major round: previous LB winners vs the next WB round's losers.
+    const wbLosersRound = wbRoundsGames[wbConsumeIndex];
+    const nextGameIds: string[] = [];
+    for (let j = 0; j < currentLBGameIds.length; j++) {
+      const game = await prisma.game.create({
+        data: {
+          divisionId,
+          stage: "BRACKET",
+          round: `Losers Round ${lbRoundNumber}`,
+          status: "SCHEDULED",
+        },
+      });
+      nextGameIds.push(game.id);
+      await prisma.game.update({
+        where: { id: currentLBGameIds[j] },
+        data: { advancesToGameId: game.id },
+      });
+      await prisma.game.update({
+        where: { id: wbLosersRound[j] },
+        data: { loserAdvancesToGameId: game.id },
+      });
+    }
+    currentLBGameIds = nextGameIds;
+    wbConsumeIndex++;
+    lbRoundNumber++;
+
+    if (wbConsumeIndex >= wbRoundsGames.length) break; // just consumed the championship's loser
+
+    // Minor round: previous (major) round's winners pair against each other.
+    if (currentLBGameIds.length > 1) {
+      const minorNextIds: string[] = [];
+      for (let j = 0; j < currentLBGameIds.length; j += 2) {
+        const game = await prisma.game.create({
+          data: {
+            divisionId,
+            stage: "BRACKET",
+            round: `Losers Round ${lbRoundNumber}`,
+            status: "SCHEDULED",
+          },
+        });
+        minorNextIds.push(game.id);
+        await prisma.game.update({
+          where: { id: currentLBGameIds[j] },
+          data: { advancesToGameId: game.id },
+        });
+        await prisma.game.update({
+          where: { id: currentLBGameIds[j + 1] },
+          data: { advancesToGameId: game.id },
+        });
+      }
+      currentLBGameIds = minorNextIds;
+      lbRoundNumber++;
+    }
+  }
+
+  return currentLBGameIds[0];
 }
 
 /**
