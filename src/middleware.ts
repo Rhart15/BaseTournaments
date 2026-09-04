@@ -29,7 +29,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const jwt = await getToken({ req, secret: process.env.AUTH_SECRET });
+  const jwt = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === "production",
+  });
   if (jwt?.role === "ADMIN") {
     return NextResponse.next();
   }
