@@ -121,6 +121,8 @@ export default function BracketEditor({
   );
 }
 
-function isRealFinal(game: GameWithTeams) {
-  return game.status === "FINAL" && Boolean(game.homeTeamId) && Boolean(game.awayTeamId);
+// Typed against just the fields BracketTree's BracketGameNode exposes
+// (not the full GameWithTeams shape) so it satisfies the isLocked prop.
+function isRealFinal(game: { status: string; homeTeam: unknown; awayTeam: unknown }) {
+  return game.status === "FINAL" && Boolean(game.homeTeam) && Boolean(game.awayTeam);
 }
