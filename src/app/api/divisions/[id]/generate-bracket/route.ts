@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { seedFromPoolStandings } from "@/lib/brackets";
+import { seedFromPoolStandings, propagateByeAdvancement } from "@/lib/brackets";
 
 // Takes final pool-play standings for a division and creates the
 // single-elimination bracket Game rows, wiring each round's winner slot
@@ -109,6 +109,12 @@ export async function POST(
     currentRoundGameIds = nextRoundGameIds;
     roundNumber++;
   }
+
+  // Byes are marked FINAL immediately above, but they never go through
+  // the score-entry route, so nothing has pushed that "winner" into the
+  // next round yet -- do that now (and let it cascade through any
+  // rounds where both feeders were byes).
+  await propagateByeAdvancement(prisma, divisionId);
 
   return NextResponse.json({ ok: true, gamesCreated: bracketSize - 1 });
 }

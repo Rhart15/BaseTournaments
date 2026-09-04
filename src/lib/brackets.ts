@@ -64,3 +64,74 @@ export async function generateBracket(
 
   return manager.get.stageData(0);
 }
+
+/**
+ * Pushes any auto-finalized bye's "winner" into the next round's open
+ * slot, and cascades that forward through the bracket (a next-round game
+ * can itself become a bye if both its feeders were byes). Byes never go
+ * through the normal score-entry route, and manual reseeding in the
+ * bracket editor can also leave this stale, so both the bracket
+ * generator and the slot-swap route call this after they change
+ * anything.
+ */
+export async function propagateByeAdvancement(
+  prisma: import("@prisma/client").PrismaClient,
+  divisionId: string
+) {
+  const bracketGameCount = await prisma.game.count({
+    where: { divisionId, stage: "BRACKET" },
+  });
+  const passes = Math.ceil(Math.log2(Math.max(bracketGameCount, 2))) + 1;
+
+  for (let pass = 0; pass < passes; pass++) {
+    const allGames = await prisma.game.findMany({
+      where: { divisionId, stage: "BRACKET" },
+    });
+
+    for (const g of allGames) {
+      if (g.status !== "FINAL" || !g.advancesToGameId) continue;
+      const winnerId =
+        g.homeTeamId && !g.awayTeamId
+          ? g.homeTeamId
+          : g.awayTeamId && !g.homeTeamId
+          ? g.awayTeamId
+          : (g.homeScore ?? 0) > (g.awayScore ?? 0)
+          ? g.homeTeamId
+          : g.awayTeamId;
+      if (!winnerId) continue;
+
+      const target = allGames.find((x) => x.id === g.advancesToGameId);
+      if (!target) continue;
+      if (target.homeTeamId === winnerId || target.awayTeamId === winnerId) continue;
+
+      const slotField = target.homeTeamId ? "awayTeamId" : "homeTeamId";
+      if (target[slotField]) continue;
+
+      await prisma.game.update({
+        where: { id: target.id },
+        data: { [slotField]: winnerId },
+      });
+    }
+
+    const refreshed = await prisma.game.findMany({
+      where: { divisionId, stage: "BRACKET" },
+    });
+    for (const g of refreshed) {
+      if (g.status === "FINAL") continue;
+      const feeders = refreshed.filter((x) => x.advancesToGameId === g.id);
+      const bothFeedersDone =
+        feeders.length === 2 && feeders.every((f) => f.status === "FINAL");
+      const exactlyOneTeamPresent = Boolean(g.homeTeamId) !== Boolean(g.awayTeamId);
+      if (bothFeedersDone && exactlyOneTeamPresent) {
+        await prisma.game.update({
+          where: { id: g.id },
+          data: {
+            status: "FINAL",
+            homeScore: g.homeTeamId ? 1 : null,
+            awayScore: g.awayTeamId ? 1 : null,
+          },
+        });
+      }
+    }
+  }
+}

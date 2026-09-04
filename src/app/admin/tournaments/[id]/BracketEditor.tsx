@@ -130,13 +130,13 @@ export default function BracketEditor({
                       game={game}
                       side="home"
                       onDrop={handleDrop}
-                      locked={game.status === "FINAL"}
+                      locked={isRealFinal(game)}
                     />
                     <Slot
                       game={game}
                       side="away"
                       onDrop={handleDrop}
-                      locked={game.status === "FINAL"}
+                      locked={isRealFinal(game)}
                     />
                   </div>
                 ))}
@@ -146,6 +146,10 @@ export default function BracketEditor({
       </div>
     </div>
   );
+}
+
+function isRealFinal(game: GameWithTeams) {
+  return game.status === "FINAL" && Boolean(game.homeTeamId) && Boolean(game.awayTeamId);
 }
 
 function Slot({
@@ -186,7 +190,7 @@ function Slot({
       }`}
     >
       <span>{team?.teamName ?? "TBD"}</span>
-      {game.status === "FINAL" && (
+      {isRealFinal(game) && (
         <span className="text-xs font-semibold">
           {side === "home" ? game.homeScore : game.awayScore}
         </span>
