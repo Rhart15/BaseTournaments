@@ -95,54 +95,44 @@ function useBracketLayout(games: BracketGameNode[]) {
       [...round].sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0))
     );
 
-    // Vertical center (in leaf units) of every game. Rounds from the
-    // "true" leaf round onward (wherever that is -- see baseIndex)
-    // follow the classic bracket rule: a round's center is the midpoint
-    // of the two games that feed into it, which only works because each
-    // of THOSE rounds has exactly half as many games as the one before
-    // it. A Play-In round breaks that assumption (it usually has far
-    // FEWER games than Round 1, not more), so it's handled separately:
-    // each Play-In game just inherits the center of the Round 1 game it
-    // feeds, nudged apart from any sibling Play-In game feeding the same
-    // slot so they don't render on top of each other.
-    const baseIndex =
-      orderedRounds.length >= 2 &&
-      orderedRounds[1].length === orderedRounds[0].length * 2
-        ? 0
-        : Math.min(1, orderedRounds.length - 1);
-
-    const centers: number[][] = new Array(orderedRounds.length);
-    centers[baseIndex] = orderedRounds[baseIndex].map((_, i) => i + 0.5);
-    for (let r = baseIndex + 1; r < orderedRounds.length; r++) {
-      const prev = centers[r - 1];
-      centers[r] = orderedRounds[r].map((_, j) => (prev[2 * j] + prev[2 * j + 1]) / 2);
-    }
-    for (let r = baseIndex - 1; r >= 0; r--) {
-      const nextCenters = centers[r + 1];
-      const targetGroupCount = new Map<number, number>();
-      const targetGroupSeen = new Map<number, number>();
-      // First pass: count how many Play-In games share each target slot.
-      for (const game of orderedRounds[r]) {
-        const targetIdx = orderedRounds[r + 1].findIndex(
-          (g) => g.id === game.advancesToGameId
-        );
-        if (targetIdx === -1) continue;
-        targetGroupCount.set(targetIdx, (targetGroupCount.get(targetIdx) ?? 0) + 1);
+    // Vertical center (in leaf units) of every game, computed left to
+    // right. A round where every game has at least one feeder in an
+    // earlier round (a normal convergence round -- Semifinals from
+    // Round 1, or a losers-bracket round from the one before it) gets
+    // its center from the average of those feeders' centers, which
+    // naturally works regardless of how many games are in each round.
+    // A round that mixes fed and unfed games, or has none at all (the
+    // literal first round, or Round 1 when some of its slots are
+    // direct entrants rather than Play-In winners), instead uses each
+    // game's own local rank within that round -- averaging in a feeder
+    // there would pull a game's position from a completely different
+    // round's numbering and collide with an unrelated sibling.
+    const centers: number[][] = [];
+    for (let r = 0; r < orderedRounds.length; r++) {
+      const round = orderedRounds[r];
+      const allHaveFeeders = round.every(
+        (g) => games.some((x) => x.advancesToGameId === g.id)
+      );
+      if (!allHaveFeeders) {
+        centers.push(round.map((_, i) => i + 0.5));
+        continue;
       }
-      centers[r] = orderedRounds[r].map((game, i) => {
-        const targetIdx = orderedRounds[r + 1].findIndex(
-          (g) => g.id === game.advancesToGameId
-        );
-        if (targetIdx === -1) return i + 0.5; // shouldn't happen, safe fallback
-        const total = targetGroupCount.get(targetIdx) ?? 1;
-        const seen = targetGroupSeen.get(targetIdx) ?? 0;
-        targetGroupSeen.set(targetIdx, seen + 1);
-        const offset = total > 1 ? (seen - (total - 1) / 2) * 0.3 : 0;
-        return nextCenters[targetIdx] + offset;
-      });
+      centers.push(
+        round.map((g) => {
+          const feeders = games.filter((x) => x.advancesToGameId === g.id);
+          const sum = feeders.reduce((total, f) => {
+            for (let rr = 0; rr < r; rr++) {
+              const idx = orderedRounds[rr].indexOf(f);
+              if (idx !== -1) return total + centers[rr][idx];
+            }
+            return total;
+          }, 0);
+          return sum / feeders.length;
+        })
+      );
     }
 
-    const leafCount = orderedRounds[baseIndex].length;
+    const leafCount = orderedRounds[0]?.length ?? 1;
     const width = orderedRounds.length * CARD_W + (orderedRounds.length - 1) * GAP_X;
     const height = Math.max(...centers.flat(), leafCount) * UNIT;
 
