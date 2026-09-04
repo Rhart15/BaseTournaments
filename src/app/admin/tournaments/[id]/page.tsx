@@ -35,9 +35,13 @@ export default async function AdminTournamentPage({
       id: division.id,
       label: division.label,
       resultsFinalized: division.resultsFinalized,
+      bracketPublished: division.bracketPublished,
       poolGames,
       bracketGames,
       allPoolGamesFinal,
+      registeredCount: division.registrations.filter(
+        (r) => r.status !== "CANCELLED" && r.status !== "REFUNDED"
+      ).length,
     };
   });
 

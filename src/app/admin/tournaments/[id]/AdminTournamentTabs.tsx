@@ -8,6 +8,8 @@ import ScoreEntry from "./ScoreEntry";
 import EditTournamentForm from "./EditTournamentForm";
 import FlyerUpload from "./FlyerUpload";
 import FinalizeResultsButton from "./FinalizeResultsButton";
+import PoolScheduleSetup from "./PoolScheduleSetup";
+import BracketEditor from "./BracketEditor";
 
 type GameWithTeams = Game & {
   homeTeam: Registration | null;
@@ -18,9 +20,11 @@ type DivisionData = {
   id: string;
   label: string;
   resultsFinalized: boolean;
+  bracketPublished: boolean;
   poolGames: GameWithTeams[];
   bracketGames: GameWithTeams[];
   allPoolGamesFinal: boolean;
+  registeredCount: number;
 };
 
 const TABS = ["Info", "Results"] as const;
@@ -140,9 +144,10 @@ export default function AdminTournamentTabs({
                     </h3>
                     <div className="mt-2 space-y-2">
                       {division.poolGames.length === 0 && (
-                        <p className="text-sm text-ink/50">
-                          No pool games scheduled yet.
-                        </p>
+                        <PoolScheduleSetup
+                          divisionId={division.id}
+                          registeredCount={division.registeredCount}
+                        />
                       )}
                       {division.poolGames.map((game) => (
                         <ScoreEntry key={game.id} game={game} />
@@ -151,6 +156,14 @@ export default function AdminTournamentTabs({
 
                     {division.bracketGames.length > 0 && (
                       <>
+                        <div className="mt-6">
+                          <BracketEditor
+                            divisionId={division.id}
+                            games={division.bracketGames}
+                            bracketPublished={division.bracketPublished}
+                          />
+                        </div>
+
                         <h3 className="mt-6 text-sm font-semibold text-ink/60">
                           Bracket games
                         </h3>

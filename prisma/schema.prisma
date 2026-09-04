@@ -79,6 +79,7 @@ model Division {
   registrations Registration[]
   games         Game[]
   resultsFinalized Boolean @default(false)
+  bracketPublished Boolean @default(false)
 }
 
 model Pool {

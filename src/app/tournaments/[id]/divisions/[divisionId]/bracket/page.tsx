@@ -2,6 +2,7 @@ import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { prisma } from "@/lib/db";
 import { seedFromPoolStandings } from "@/lib/brackets";
+import { auth } from "@/auth";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,8 @@ export default async function BracketPage({
   params: Promise<{ id: string; divisionId: string }>;
 }) {
   const { divisionId } = await params;
+  const session = await auth();
+  const isAdmin = session?.user.role === "ADMIN";
 
   const division = await prisma.division.findUnique({
     where: { id: divisionId },
@@ -34,6 +37,7 @@ export default async function BracketPage({
     return pctB - pctA;
   });
   const seedOrder = seedFromPoolStandings(division.registrations);
+  const canSeeBracket = division.bracketPublished || isAdmin;
 
   return (
     <>
@@ -80,42 +84,57 @@ export default async function BracketPage({
         </table>
 
         <h2 className="display mt-12 text-2xl">Elimination bracket</h2>
-        {division.games.length === 0 ? (
+
+        {!canSeeBracket ? (
           <p className="mt-3 text-ink/60">
-            The bracket generates automatically once pool play standings
-            are final.
+            The bracket isn&apos;t posted yet -- check back soon.
           </p>
         ) : (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {division.games.map((game) => (
-              <div
-                key={game.id}
-                className="rounded-sm border border-steel/30 bg-white p-4 text-sm"
-              >
-                <div className="text-xs uppercase tracking-wide text-red">
-                  {game.round ?? "Bracket game"}
-                </div>
-                <div className="mt-2 flex justify-between">
-                  <span>{game.homeTeam?.teamName ?? "TBD"}</span>
-                  <span className="font-semibold">{game.homeScore ?? "-"}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>{game.awayTeam?.teamName ?? "TBD"}</span>
-                  <span className="font-semibold">{game.awayScore ?? "-"}</span>
-                </div>
-                <div className="mt-2 text-xs text-ink/50">
-                  {game.fieldName ?? "Field TBD"} ·{" "}
-                  {game.startTime
-                    ? new Date(game.startTime).toLocaleString("en-US", {
-                        weekday: "short",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })
-                    : "Time TBD"}
-                </div>
+          <>
+            {isAdmin && !division.bracketPublished && (
+              <p className="mt-3 rounded-sm bg-gold/20 px-3 py-2 text-sm font-semibold text-ink/70">
+                Draft -- only admins can see this bracket. It isn&apos;t
+                published to the public yet.
+              </p>
+            )}
+            {division.games.length === 0 ? (
+              <p className="mt-3 text-ink/60">
+                The bracket generates automatically once pool play standings
+                are final.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {division.games.map((game) => (
+                  <div
+                    key={game.id}
+                    className="rounded-sm border border-steel/30 bg-white p-4 text-sm"
+                  >
+                    <div className="text-xs uppercase tracking-wide text-red">
+                      {game.round ?? "Bracket game"}
+                    </div>
+                    <div className="mt-2 flex justify-between">
+                      <span>{game.homeTeam?.teamName ?? "TBD"}</span>
+                      <span className="font-semibold">{game.homeScore ?? "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>{game.awayTeam?.teamName ?? "TBD"}</span>
+                      <span className="font-semibold">{game.awayScore ?? "-"}</span>
+                    </div>
+                    <div className="mt-2 text-xs text-ink/50">
+                      {game.fieldName ?? "Field TBD"} ·{" "}
+                      {game.startTime
+                        ? new Date(game.startTime).toLocaleString("en-US", {
+                            weekday: "short",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })
+                        : "Time TBD"}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </section>
       <SiteFooter />
