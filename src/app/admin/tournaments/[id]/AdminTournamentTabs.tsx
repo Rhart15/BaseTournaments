@@ -1,0 +1,173 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import type { Game, Registration } from "@prisma/client";
+import GenerateBracketButton from "./GenerateBracketButton";
+import ScoreEntry from "./ScoreEntry";
+import EditTournamentForm from "./EditTournamentForm";
+import FlyerUpload from "./FlyerUpload";
+import FinalizeResultsButton from "./FinalizeResultsButton";
+
+type GameWithTeams = Game & {
+  homeTeam: Registration | null;
+  awayTeam: Registration | null;
+};
+
+type DivisionData = {
+  id: string;
+  label: string;
+  resultsFinalized: boolean;
+  poolGames: GameWithTeams[];
+  bracketGames: GameWithTeams[];
+  allPoolGamesFinal: boolean;
+};
+
+const TABS = ["Info", "Results"] as const;
+type Tab = (typeof TABS)[number];
+
+export default function AdminTournamentTabs({
+  tournamentId,
+  tournamentName,
+  flyerUrl,
+  editFormInitial,
+  editFormDivisions,
+  divisions,
+}: {
+  tournamentId: string;
+  tournamentName: string;
+  flyerUrl: string | null;
+  editFormInitial: {
+    name: string;
+    sport: string;
+    startDate: string;
+    endDate: string;
+    city: string;
+    state: string;
+    entryFeeDollars: number;
+    teamCap: number;
+    description: string;
+  };
+  editFormDivisions: { id: string; label: string }[];
+  divisions: DivisionData[];
+}) {
+  const [activeTab, setActiveTab] = useState<Tab>("Results");
+
+  return (
+    <div className="min-h-screen bg-cream">
+      <header className="bg-navy px-6 py-5 text-white">
+        <Link href="/admin" className="text-sm text-white/60 hover:text-white">
+          Back to all tournaments
+        </Link>
+        <h1 className="display mt-1 text-2xl">{tournamentName}</h1>
+      </header>
+
+      <div className="mx-auto max-w-6xl px-6 py-8">
+        <div className="flex gap-2 border-b border-steel/20">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm font-semibold ${
+                activeTab === tab
+                  ? "border-b-2 border-red text-red"
+                  : "text-ink/60 hover:text-ink"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-6">
+          {activeTab === "Info" && (
+            <div className="space-y-6">
+              <div className="rounded-sm border border-steel/20 bg-white p-6">
+                <FlyerUpload tournamentId={tournamentId} initialFlyerUrl={flyerUrl} />
+              </div>
+              <EditTournamentForm
+                tournamentId={tournamentId}
+                initial={editFormInitial}
+                divisions={editFormDivisions}
+              />
+            </div>
+          )}
+
+          {activeTab === "Results" && (
+            <div className="space-y-12">
+              {divisions.length === 0 && (
+                <p className="text-ink/60">No divisions yet for this tournament.</p>
+              )}
+
+              {divisions.map((division) => {
+                const championship = division.bracketGames.find(
+                  (g) => g.round === "Championship"
+                );
+                const canFinalize = Boolean(
+                  championship && championship.status === "FINAL"
+                );
+
+                return (
+                  <section key={division.id}>
+                    <div className="flex items-center justify-between">
+                      <h2 className="display text-xl">{division.label}</h2>
+                      <div className="flex items-center gap-4">
+                        {division.bracketGames.length === 0 ? (
+                          <GenerateBracketButton
+                            divisionId={division.id}
+                            disabled={!division.allPoolGamesFinal}
+                          />
+                        ) : (
+                          <>
+                            <Link
+                              href={`/tournaments/${tournamentId}/divisions/${division.id}/bracket`}
+                              className="text-sm font-semibold text-red hover:text-red-dark"
+                            >
+                              View public bracket {"->"}
+                            </Link>
+                            <FinalizeResultsButton
+                              divisionId={division.id}
+                              disabled={!canFinalize}
+                              alreadyFinalized={division.resultsFinalized}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <h3 className="mt-4 text-sm font-semibold text-ink/60">
+                      Pool play games
+                    </h3>
+                    <div className="mt-2 space-y-2">
+                      {division.poolGames.length === 0 && (
+                        <p className="text-sm text-ink/50">
+                          No pool games scheduled yet.
+                        </p>
+                      )}
+                      {division.poolGames.map((game) => (
+                        <ScoreEntry key={game.id} game={game} />
+                      ))}
+                    </div>
+
+                    {division.bracketGames.length > 0 && (
+                      <>
+                        <h3 className="mt-6 text-sm font-semibold text-ink/60">
+                          Bracket games
+                        </h3>
+                        <div className="mt-2 space-y-2">
+                          {division.bracketGames.map((game) => (
+                            <ScoreEntry key={game.id} game={game} />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

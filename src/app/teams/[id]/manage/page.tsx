@@ -77,6 +77,9 @@ export default async function TeamManagePage({
         startDate: r.tournament.startDate.toISOString(),
         endDate: r.tournament.endDate.toISOString(),
         status: r.status,
+        finalPlacement: r.finalPlacement,
+        wins: r.poolWins + r.bracketWins,
+        losses: r.poolLosses + r.bracketLosses,
       }))}
       pastEvents={past.map((r) => ({
         id: r.id,
@@ -85,6 +88,9 @@ export default async function TeamManagePage({
         startDate: r.tournament.startDate.toISOString(),
         endDate: r.tournament.endDate.toISOString(),
         status: r.status,
+        finalPlacement: r.finalPlacement,
+        wins: r.poolWins + r.bracketWins,
+        losses: r.poolLosses + r.bracketLosses,
       }))}
     />
   );

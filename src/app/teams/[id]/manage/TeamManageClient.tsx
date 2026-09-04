@@ -40,6 +40,9 @@ type EventRow = {
   startDate: string;
   endDate: string;
   status: string;
+  finalPlacement: string | null;
+  wins: number;
+  losses: number;
 };
 
 const TABS = ["Team Info", "Staff", "Players", "Documents", "Tournament History"] as const;
@@ -871,6 +874,16 @@ function TournamentHistoryTab({
             >
               {e.status}
             </span>
+            {e.finalPlacement && (
+              <span className="ml-2 mt-2 inline-block rounded-sm bg-navy px-2 py-1 text-xs font-semibold uppercase text-white">
+                {e.finalPlacement}
+              </span>
+            )}
+            {(e.wins > 0 || e.losses > 0) && (
+              <span className="ml-2 mt-2 inline-block text-xs font-semibold text-ink/60">
+                {e.wins}-{e.losses}
+              </span>
+            )}
           </div>
         ))}
         {list.length === 0 && (

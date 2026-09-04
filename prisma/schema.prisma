@@ -78,6 +78,7 @@ model Division {
   pools         Pool[]
   registrations Registration[]
   games         Game[]
+  resultsFinalized Boolean @default(false)
 }
 
 model Pool {
@@ -113,6 +114,10 @@ model Registration {
   poolLosses    Int       @default(0)
   runsFor       Int       @default(0)
   runsAgainst   Int       @default(0)
+
+  bracketWins   Int       @default(0)
+  bracketLosses Int       @default(0)
+  finalPlacement String?  // e.g. "Champion", "Runner-up", "Lost in Semifinals"
 
   createdAt     DateTime  @default(now())
 

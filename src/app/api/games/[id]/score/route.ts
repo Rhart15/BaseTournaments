@@ -56,6 +56,27 @@ export async function PATCH(
     });
   }
 
+  // Bracket-stage games also roll into each team's record, so results
+  // are logged onto the team automatically as they're entered live.
+  if (game.stage === "BRACKET" && game.homeTeamId && game.awayTeamId) {
+    const homeWon = parsed.data.homeScore > parsed.data.awayScore;
+
+    await prisma.registration.update({
+      where: { id: game.homeTeamId },
+      data: {
+        bracketWins: { increment: homeWon ? 1 : 0 },
+        bracketLosses: { increment: homeWon ? 0 : 1 },
+      },
+    });
+    await prisma.registration.update({
+      where: { id: game.awayTeamId },
+      data: {
+        bracketWins: { increment: homeWon ? 0 : 1 },
+        bracketLosses: { increment: homeWon ? 1 : 0 },
+      },
+    });
+  }
+
   // Bracket-stage advancement: push the winner into the next game slot.
   if (game.stage === "BRACKET" && game.advancesToGameId) {
     const winnerId =
