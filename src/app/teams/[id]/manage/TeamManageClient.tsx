@@ -120,57 +120,14 @@ export default function TeamManageClient({
 
         <div className="mt-6">
           {activeTab === "Team Info" && (
-            <div className="rounded-sm border border-steel/20 bg-white p-6">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/60">
-                Team logo
-              </h2>
-              <div className="mt-3 flex items-center gap-4">
-                {logoUrl ? (
-                  <div className="relative h-24 w-24 overflow-hidden rounded-sm border border-steel/20">
-                    <Image src={logoUrl} alt="Team logo" fill className="object-cover" />
-                  </div>
-                ) : (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-sm border-2 border-dashed border-steel/40 text-xs text-ink/40">
-                    No logo
-                  </div>
-                )}
-                <button
-                  onClick={() => logoInputRef.current?.click()}
-                  disabled={uploadingLogo}
-                  className="rounded-sm border border-steel/40 px-4 py-2 text-sm font-semibold hover:border-red hover:text-red disabled:opacity-50"
-                >
-                  {uploadingLogo ? "Uploading..." : logoUrl ? "Replace logo" : "Upload logo"}
-                </button>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleLogoChange}
-                  className="hidden"
-                />
-              </div>
-
-              <div className="mt-8 grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-ink/50">Team name</p>
-                  <p className="mt-1 font-semibold">{team.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-ink/50">Division</p>
-                  <p className="mt-1 font-semibold">{team.ageGroup}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-ink/50">Home city</p>
-                  <p className="mt-1 font-semibold">
-                    {team.homeCity ? `${team.homeCity}, ${team.homeState}` : "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-ink/50">Organization</p>
-                  <p className="mt-1 font-semibold">{team.organization ?? "-"}</p>
-                </div>
-              </div>
-            </div>
+            <TeamInfoTab
+              team={team}
+              logoUrl={logoUrl}
+              uploadingLogo={uploadingLogo}
+              logoInputRef={logoInputRef}
+              onLogoChange={handleLogoChange}
+              router={router}
+            />
           )}
 
           {activeTab === "Staff" && <StaffTab teamId={team.id} initialStaff={staff} />}
@@ -188,6 +145,220 @@ export default function TeamManageClient({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TeamInfoTab({
+  team,
+  logoUrl,
+  uploadingLogo,
+  logoInputRef,
+  onLogoChange,
+  router,
+}: {
+  team: {
+    id: string;
+    name: string;
+    organization: string | null;
+    ageGroup: string;
+    homeCity: string | null;
+    homeState: string;
+    logoUrl: string | null;
+  };
+  logoUrl: string | null;
+  uploadingLogo: boolean;
+  logoInputRef: React.RefObject<HTMLInputElement | null>;
+  onLogoChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  router: ReturnType<typeof useRouter>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(team.name);
+  const [ageGroup, setAgeGroup] = useState(team.ageGroup);
+  const [homeCity, setHomeCity] = useState(team.homeCity ?? "");
+  const [homeState, setHomeState] = useState(team.homeState);
+  const [organization, setOrganization] = useState(team.organization ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!name.trim() || !ageGroup.trim() || !homeState.trim()) {
+      setError("Team name, division, and state are required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const res = await fetch(`/api/teams/${team.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        ageGroup,
+        homeCity: homeCity || null,
+        homeState,
+        organization: organization || null,
+      }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setEditing(false);
+      router.refresh();
+    } else {
+      setError("Something went wrong saving your changes.");
+    }
+  }
+
+  function handleCancel() {
+    setName(team.name);
+    setAgeGroup(team.ageGroup);
+    setHomeCity(team.homeCity ?? "");
+    setHomeState(team.homeState);
+    setOrganization(team.organization ?? "");
+    setError(null);
+    setEditing(false);
+  }
+
+  return (
+    <div className="rounded-sm border border-steel/20 bg-white p-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/60">
+        Team logo
+      </h2>
+      <div className="mt-3 flex items-center gap-4">
+        {logoUrl ? (
+          <div className="relative h-24 w-24 overflow-hidden rounded-sm border border-steel/20">
+            <Image src={logoUrl} alt="Team logo" fill className="object-cover" />
+          </div>
+        ) : (
+          <div className="flex h-24 w-24 items-center justify-center rounded-sm border-2 border-dashed border-steel/40 text-xs text-ink/40">
+            No logo
+          </div>
+        )}
+        <button
+          onClick={() => logoInputRef.current?.click()}
+          disabled={uploadingLogo}
+          className="rounded-sm border border-steel/40 px-4 py-2 text-sm font-semibold hover:border-red hover:text-red disabled:opacity-50"
+        >
+          {uploadingLogo ? "Uploading..." : logoUrl ? "Replace logo" : "Upload logo"}
+        </button>
+        <input
+          ref={logoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={onLogoChange}
+          className="hidden"
+        />
+      </div>
+
+      <div className="mt-8 flex items-center justify-between border-t border-steel/20 pt-6">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/60">
+          Team details
+        </h2>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs font-semibold text-red hover:text-red-dark"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      {!editing ? (
+        <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-ink/50">Team name</p>
+            <p className="mt-1 font-semibold">{team.name}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-ink/50">Division</p>
+            <p className="mt-1 font-semibold">{team.ageGroup}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-ink/50">Home city</p>
+            <p className="mt-1 font-semibold">
+              {team.homeCity ? `${team.homeCity}, ${team.homeState}` : team.homeState || "-"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-ink/50">Organization</p>
+            <p className="mt-1 font-semibold">{team.organization ?? "-"}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <label className="text-xs uppercase tracking-wide text-ink/50">
+              Team name
+            </label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-wide text-ink/50">
+              Division
+            </label>
+            <input
+              value={ageGroup}
+              onChange={(e) => setAgeGroup(e.target.value)}
+              placeholder="e.g. 12U"
+              className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-wide text-ink/50">
+              Home city
+            </label>
+            <input
+              value={homeCity}
+              onChange={(e) => setHomeCity(e.target.value)}
+              className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-wide text-ink/50">
+              State
+            </label>
+            <input
+              value={homeState}
+              onChange={(e) => setHomeState(e.target.value)}
+              placeholder="e.g. AR"
+              className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs uppercase tracking-wide text-ink/50">
+              Organization (optional)
+            </label>
+            <input
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2"
+            />
+          </div>
+
+          {error && <p className="col-span-2 text-sm text-red">{error}</p>}
+
+          <div className="col-span-2 flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-sm bg-red px-5 py-2 text-sm font-semibold text-white hover:bg-red-dark disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save changes"}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={saving}
+              className="rounded-sm border border-steel/40 px-5 py-2 text-sm font-semibold text-ink/70 hover:border-red hover:text-red"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -397,6 +568,10 @@ function PlayersTab({
 
   const [playerList, setPlayerList] = useState(initialPlayers);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editJersey, setEditJersey] = useState("");
+  const [editPosition, setEditPosition] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   async function handleUploadCheck(playerId: string, file: File) {
     const formData = new FormData();
@@ -410,6 +585,36 @@ function PlayersTab({
       setPlayerList((prev) =>
         prev.map((p) => (p.id === playerId ? { ...p, ...data.player } : p))
       );
+    }
+  }
+
+  function startEdit(p: PlayerRow) {
+    setEditingId(p.id);
+    setEditJersey(p.jerseyNumber ?? "");
+    setEditPosition(p.position ?? "");
+  }
+
+  async function handleSaveEdit(playerId: string) {
+    setSavingEdit(true);
+    const res = await fetch(`/api/players/${playerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jerseyNumber: editJersey, position: editPosition }),
+    });
+    setSavingEdit(false);
+    if (res.ok) {
+      const data = await res.json();
+      setPlayerList((prev) =>
+        prev.map((p) => (p.id === playerId ? { ...p, ...data.player } : p))
+      );
+      setEditingId(null);
+    }
+  }
+
+  async function handleRemovePlayer(playerId: string) {
+    const res = await fetch(`/api/players/${playerId}`, { method: "DELETE" });
+    if (res.ok) {
+      setPlayerList((prev) => prev.filter((p) => p.id !== playerId));
     }
   }
 
@@ -441,6 +646,7 @@ function PlayersTab({
             <th>#</th>
             <th>Position</th>
             <th>Background check</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -449,8 +655,29 @@ function PlayersTab({
               <td className="py-3 font-semibold">
                 {p.firstName} {p.lastName}
               </td>
-              <td>{p.jerseyNumber ?? "-"}</td>
-              <td>{p.position ?? "-"}</td>
+              {editingId === p.id ? (
+                <>
+                  <td>
+                    <input
+                      value={editJersey}
+                      onChange={(e) => setEditJersey(e.target.value)}
+                      className="w-14 rounded-sm border border-steel/40 px-2 py-1 text-sm"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      value={editPosition}
+                      onChange={(e) => setEditPosition(e.target.value)}
+                      className="w-24 rounded-sm border border-steel/40 px-2 py-1 text-sm"
+                    />
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td>{p.jerseyNumber ?? "-"}</td>
+                  <td>{p.position ?? "-"}</td>
+                </>
+              )}
               <td>
                 <div className="flex items-center gap-2">
                   <span
@@ -482,11 +709,45 @@ function PlayersTab({
                   />
                 </div>
               </td>
+              <td className="text-right">
+                {editingId === p.id ? (
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => handleSaveEdit(p.id)}
+                      disabled={savingEdit}
+                      className="text-xs font-semibold text-red hover:text-red-dark"
+                    >
+                      {savingEdit ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="text-xs font-semibold text-ink/50 hover:text-ink"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="text-xs font-semibold text-ink/60 hover:text-red"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleRemovePlayer(p.id)}
+                      className="text-xs font-semibold text-ink/50 hover:text-red"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </td>
             </tr>
           ))}
           {playerList.length === 0 && (
             <tr>
-              <td colSpan={4} className="py-6 text-center text-ink/50">
+              <td colSpan={5} className="py-6 text-center text-ink/50">
                 No players on this roster yet.
               </td>
             </tr>
