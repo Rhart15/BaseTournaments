@@ -21,9 +21,9 @@ type Side = "home" | "away";
 type DragPayload = { gameId: string; side: Side };
 
 const CARD_W = 190;
-const CARD_H = 62;
+const CARD_H = 78;
 const GAP_X = 56;
-const UNIT = 74; // vertical space per leaf (round-1) match
+const UNIT = 90; // vertical space per leaf (round-1) match
 
 /**
  * Groups games into left-to-right rounds and works out each game's
@@ -41,9 +41,26 @@ function useBracketLayout(games: BracketGameNode[]) {
       if (!byRound.has(key)) byRound.set(key, []);
       byRound.get(key)!.push(g);
     }
-    // Each round has exactly half the games of the previous one, so
-    // sorting groups by descending size orders them Round 1 -> Final.
-    const roundGroups = [...byRound.values()].sort((a, b) => b.length - a.length);
+
+    // Round order can't just be "most games = earliest round" once a
+    // Play-In round exists -- it usually has fewer games than Round 1,
+    // not more. Instead, order rounds by how deep each game sits in the
+    // advancesToGameId graph (a game with no other game feeding it is
+    // depth 0; everything else is 1 + the deepest of its feeders), using
+    // each round's MAX depth as the sort key so a round is placed after
+    // every round any of its games depends on.
+    const depthCache = new Map<string, number>();
+    function depthOf(game: BracketGameNode): number {
+      const cached = depthCache.get(game.id);
+      if (cached !== undefined) return cached;
+      const feeders = games.filter((g) => g.advancesToGameId === game.id);
+      const depth = feeders.length === 0 ? 0 : 1 + Math.max(...feeders.map(depthOf));
+      depthCache.set(game.id, depth);
+      return depth;
+    }
+    const roundGroups = [...byRound.values()].sort(
+      (a, b) => Math.max(...a.map(depthOf)) - Math.max(...b.map(depthOf))
+    );
 
     // Work out each game's left-to-right index within its round from
     // the graph, starting at the championship (index 0) and walking
@@ -78,23 +95,30 @@ function useBracketLayout(games: BracketGameNode[]) {
       [...round].sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0))
     );
 
-    // Vertical center (in leaf units) of every game: round 1 games sit
-    // at i + 0.5, and every later round's game centers on the midpoint
-    // of the two games that feed into it.
-    const centers: number[][] = [];
-    centers.push(orderedRounds[0].map((_, i) => i + 0.5));
-    for (let r = 1; r < orderedRounds.length; r++) {
-      const prev = centers[r - 1];
-      const row: number[] = [];
-      for (let j = 0; j < orderedRounds[r].length; j++) {
-        row.push((prev[2 * j] + prev[2 * j + 1]) / 2);
-      }
-      centers.push(row);
+    // Vertical center (in leaf units) of every game. A game with no
+    // feeders (a Play-In game, or a Round 1 game that a direct entrant
+    // -- not a Play-In winner -- occupies) sits at its own local
+    // position; everything else centers on the midpoint of whatever
+    // actually feeds it. This is graph-driven rather than assuming every
+    // round has exactly half as many games as the previous one, which
+    // breaks once a smaller Play-In round sits in front of Round 1.
+    const centerCache = new Map<string, number>();
+    function centerOf(game: BracketGameNode): number {
+      const cached = centerCache.get(game.id);
+      if (cached !== undefined) return cached;
+      const feeders = games.filter((g) => g.advancesToGameId === game.id);
+      const center =
+        feeders.length === 0
+          ? (position.get(game.id) ?? 0) + 0.5
+          : feeders.reduce((sum, f) => sum + centerOf(f), 0) / feeders.length;
+      centerCache.set(game.id, center);
+      return center;
     }
+    const centers: number[][] = orderedRounds.map((round) => round.map(centerOf));
 
     const leafCount = orderedRounds[0].length;
     const width = orderedRounds.length * CARD_W + (orderedRounds.length - 1) * GAP_X;
-    const height = leafCount * UNIT;
+    const height = Math.max(...centers.flat(), leafCount) * UNIT;
 
     return { orderedRounds, centers, width, height };
   }, [games]);
@@ -181,6 +205,11 @@ export default function BracketTree({
                     onDrop={onDrop}
                     locked={isLocked ? isLocked(game) : false}
                   />
+                  {(game.fieldName || game.startTime) && (
+                    <div className="truncate border-t border-steel/15 px-2 py-1 text-[11px] text-ink/50">
+                      {formatFieldTime(game.fieldName, game.startTime)}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -239,4 +268,25 @@ function TreeSlot({
       )}
     </div>
   );
+}
+
+function formatFieldTime(
+  fieldName: string | null | undefined,
+  startTime: string | Date | null | undefined
+): string {
+  const parts: string[] = [];
+  if (fieldName) parts.push(fieldName);
+  if (startTime) {
+    const d = new Date(startTime);
+    if (!isNaN(d.getTime())) {
+      parts.push(
+        d.toLocaleString("en-US", {
+          weekday: "short",
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      );
+    }
+  }
+  return parts.join(" - ");
 }

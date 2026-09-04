@@ -9,11 +9,26 @@ type GameWithTeams = Game & {
   awayTeam: Registration | null;
 };
 
+// Formats a Date into the value a <input type="datetime-local"> expects
+// (local time, no timezone/seconds), or "" if there's no time set yet.
+function toDatetimeLocalValue(date: Date | string | null): string {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
 export default function ScoreEntry({ game }: { game: GameWithTeams }) {
   const router = useRouter();
   const [homeScore, setHomeScore] = useState(game.homeScore ?? "");
   const [awayScore, setAwayScore] = useState(game.awayScore ?? "");
   const [saving, setSaving] = useState(false);
+  const [fieldName, setFieldName] = useState(game.fieldName ?? "");
+  const [startTime, setStartTime] = useState(toDatetimeLocalValue(game.startTime));
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
   const canScore = game.homeTeam && game.awayTeam;
 
@@ -28,6 +43,20 @@ export default function ScoreEntry({ game }: { game: GameWithTeams }) {
       }),
     });
     setSaving(false);
+    router.refresh();
+  }
+
+  async function handleSaveSchedule() {
+    setSavingSchedule(true);
+    await fetch(`/api/games/${game.id}/schedule`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fieldName: fieldName.trim() || null,
+        startTime: startTime ? new Date(startTime).toISOString() : null,
+      }),
+    });
+    setSavingSchedule(false);
     router.refresh();
   }
 
@@ -78,6 +107,36 @@ export default function ScoreEntry({ game }: { game: GameWithTeams }) {
       >
         {saving ? "Saving…" : "Save score"}
       </button>
+
+      <div className="flex w-full flex-wrap items-center gap-2 border-t border-steel/10 pt-2">
+        <label className="text-xs uppercase tracking-wide text-ink/50">
+          Field
+        </label>
+        <input
+          type="text"
+          placeholder="Field 3"
+          value={fieldName}
+          onChange={(e) => setFieldName(e.target.value)}
+          className="w-24 rounded-sm border border-steel/40 px-2 py-1 text-xs"
+        />
+        <label className="text-xs uppercase tracking-wide text-ink/50">
+          Time
+        </label>
+        <input
+          type="datetime-local"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          className="rounded-sm border border-steel/40 px-2 py-1 text-xs"
+        />
+        <button
+          onClick={handleSaveSchedule}
+          disabled={savingSchedule}
+          className="rounded-sm border border-steel/40 px-3 py-1.5 text-xs font-semibold text-ink/70 hover:border-red hover:text-red disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {savingSchedule ? "Saving…" : "Save field/time"}
+        </button>
+      </div>
     </div>
   );
 }
+
