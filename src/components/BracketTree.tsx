@@ -95,28 +95,54 @@ function useBracketLayout(games: BracketGameNode[]) {
       [...round].sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0))
     );
 
-    // Vertical center (in leaf units) of every game. A game with no
-    // feeders (a Play-In game, or a Round 1 game that a direct entrant
-    // -- not a Play-In winner -- occupies) sits at its own local
-    // position; everything else centers on the midpoint of whatever
-    // actually feeds it. This is graph-driven rather than assuming every
-    // round has exactly half as many games as the previous one, which
-    // breaks once a smaller Play-In round sits in front of Round 1.
-    const centerCache = new Map<string, number>();
-    function centerOf(game: BracketGameNode): number {
-      const cached = centerCache.get(game.id);
-      if (cached !== undefined) return cached;
-      const feeders = games.filter((g) => g.advancesToGameId === game.id);
-      const center =
-        feeders.length === 0
-          ? (position.get(game.id) ?? 0) + 0.5
-          : feeders.reduce((sum, f) => sum + centerOf(f), 0) / feeders.length;
-      centerCache.set(game.id, center);
-      return center;
-    }
-    const centers: number[][] = orderedRounds.map((round) => round.map(centerOf));
+    // Vertical center (in leaf units) of every game. Rounds from the
+    // "true" leaf round onward (wherever that is -- see baseIndex)
+    // follow the classic bracket rule: a round's center is the midpoint
+    // of the two games that feed into it, which only works because each
+    // of THOSE rounds has exactly half as many games as the one before
+    // it. A Play-In round breaks that assumption (it usually has far
+    // FEWER games than Round 1, not more), so it's handled separately:
+    // each Play-In game just inherits the center of the Round 1 game it
+    // feeds, nudged apart from any sibling Play-In game feeding the same
+    // slot so they don't render on top of each other.
+    const baseIndex =
+      orderedRounds.length >= 2 &&
+      orderedRounds[1].length === orderedRounds[0].length * 2
+        ? 0
+        : Math.min(1, orderedRounds.length - 1);
 
-    const leafCount = orderedRounds[0].length;
+    const centers: number[][] = new Array(orderedRounds.length);
+    centers[baseIndex] = orderedRounds[baseIndex].map((_, i) => i + 0.5);
+    for (let r = baseIndex + 1; r < orderedRounds.length; r++) {
+      const prev = centers[r - 1];
+      centers[r] = orderedRounds[r].map((_, j) => (prev[2 * j] + prev[2 * j + 1]) / 2);
+    }
+    for (let r = baseIndex - 1; r >= 0; r--) {
+      const nextCenters = centers[r + 1];
+      const targetGroupCount = new Map<number, number>();
+      const targetGroupSeen = new Map<number, number>();
+      // First pass: count how many Play-In games share each target slot.
+      for (const game of orderedRounds[r]) {
+        const targetIdx = orderedRounds[r + 1].findIndex(
+          (g) => g.id === game.advancesToGameId
+        );
+        if (targetIdx === -1) continue;
+        targetGroupCount.set(targetIdx, (targetGroupCount.get(targetIdx) ?? 0) + 1);
+      }
+      centers[r] = orderedRounds[r].map((game, i) => {
+        const targetIdx = orderedRounds[r + 1].findIndex(
+          (g) => g.id === game.advancesToGameId
+        );
+        if (targetIdx === -1) return i + 0.5; // shouldn't happen, safe fallback
+        const total = targetGroupCount.get(targetIdx) ?? 1;
+        const seen = targetGroupSeen.get(targetIdx) ?? 0;
+        targetGroupSeen.set(targetIdx, seen + 1);
+        const offset = total > 1 ? (seen - (total - 1) / 2) * 0.3 : 0;
+        return nextCenters[targetIdx] + offset;
+      });
+    }
+
+    const leafCount = orderedRounds[baseIndex].length;
     const width = orderedRounds.length * CARD_W + (orderedRounds.length - 1) * GAP_X;
     const height = Math.max(...centers.flat(), leafCount) * UNIT;
 
