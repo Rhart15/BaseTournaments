@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canManageRegistration } from "@/lib/teamAuth";
 import { prisma } from "@/lib/db";
 
 export async function DELETE(
@@ -6,6 +7,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; playerId: string }> }
 ) {
   const { id, playerId } = await params;
+  if (!(await canManageRegistration(id))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const player = await prisma.rosterPlayer.findUnique({
     where: { id: playerId },

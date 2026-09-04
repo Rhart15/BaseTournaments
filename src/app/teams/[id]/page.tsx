@@ -147,6 +147,7 @@ export default async function TeamDetailPage({
                   <th className="pb-2 font-medium">Tournament</th>
                   <th className="pb-2 font-medium">Record</th>
                   <th className="pb-2 font-medium">Placement</th>
+                  <th className="pb-2 font-medium">Payment</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,6 +166,9 @@ export default async function TeamDetailPage({
                     </td>
                     <td className="py-2 text-ink/70">
                       {r.finalPlacement ?? "-"}
+                    </td>
+                    <td className="py-2 text-xs uppercase text-ink/60">
+                      {r.isVipComp ? "Paid (VIP)" : r.status}
                     </td>
                   </tr>
                 ))}

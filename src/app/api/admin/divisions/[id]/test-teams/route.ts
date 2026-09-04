@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminAuthed } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 const NAME_PARTS = [
@@ -23,6 +24,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!(await isAdminAuthed())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   const { id: divisionId } = await params;
   const body = await req.json().catch(() => ({}));
   const count = Math.max(1, Math.min(32, Number(body.count) || 1));

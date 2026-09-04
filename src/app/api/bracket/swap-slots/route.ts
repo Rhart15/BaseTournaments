@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isAdminAuthed } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 import { propagateByeAdvancement } from "@/lib/brackets";
 
@@ -12,6 +13,10 @@ const isRealFinal = (g: { status: string; homeTeamId: string | null; awayTeamId:
 // Blocked once either game has already been played, since that's a real
 // recorded result, not a seeding placeholder anymore.
 export async function POST(req: NextRequest) {
+  if (!(await isAdminAuthed())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
   const { gameAId, gameASide, gameBId, gameBSide } = body as {
     gameAId: string;

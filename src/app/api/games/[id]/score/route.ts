@@ -7,8 +7,9 @@ const scoreSchema = z.object({
   awayScore: z.number().int().min(0),
 });
 
-// TODO: gate this behind admin/staff auth before go-live -- anyone who can
-// reach this route can currently overwrite a live score.
+// Auth for this route is enforced in middleware.ts (any path ending in
+// /score under /api/games/ requires an ADMIN-role session or the legacy
+// admin cookie), not here -- see the isProtectedApi check there.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -128,6 +128,7 @@ model Registration {
   bracketWins   Int       @default(0)
   bracketLosses Int       @default(0)
   finalPlacement String?  // e.g. "Champion", "Runner-up", "Lost in Semifinals"
+  isVipComp     Boolean   @default(false) // paid via VIP access code, not a real card charge
 
   createdAt     DateTime  @default(now())
 

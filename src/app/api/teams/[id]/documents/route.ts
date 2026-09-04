@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { canManageTeam } from "@/lib/teamAuth";
 import { prisma } from "@/lib/db";
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -9,6 +10,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!(await canManageTeam(id))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const team = await prisma.team.findUnique({ where: { id } });
   if (!team) {

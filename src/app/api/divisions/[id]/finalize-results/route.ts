@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Game } from "@prisma/client";
+import { isAdminAuthed } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 // Called by the admin once a division's bracket is done. Reads the
@@ -10,6 +11,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!(await isAdminAuthed())) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { id: divisionId } = await params;
 
   const games = await prisma.game.findMany({

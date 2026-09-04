@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Intentionally public: a coach copies this team's /join link and
+// shares it with parents so they can add their own athlete to the
+// roster without needing a login. Not gated by canManageTeam -- that
+// would break the feature, since the person submitting isn't the coach.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

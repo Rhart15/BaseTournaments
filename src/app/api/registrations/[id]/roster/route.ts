@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canManageRegistration } from "@/lib/teamAuth";
 import { prisma } from "@/lib/db";
 
 export async function GET(
@@ -18,6 +19,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!(await canManageRegistration(id))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
   const { firstName, lastName, jerseyNumber, position } = body;
 

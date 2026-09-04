@@ -2,20 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
-import { stripe } from "@/lib/stripe";
 
-const registerSchema = z.object({
+const vipRegisterSchema = z.object({
   tournamentId: z.string(),
   divisionId: z.string(),
   teamName: z.string().min(2),
   coachName: z.string().min(2),
   coachEmail: z.string().email(),
   coachPhone: z.string().min(7),
+  vipCode: z.string().min(1),
 });
 
+// A separate, code-gated path for comping a registration (sponsors,
+// invited teams, staff, etc.) without a real Stripe charge. The code
+// is a private secret only Ray hands out -- it is never accepted from
+// a client-visible default and is compared server-side only, so this
+// can't become a generic "skip payment" button for the public.
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const parsed = registerSchema.safeParse(body);
+  const parsed = vipRegisterSchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json(
@@ -24,18 +29,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { tournamentId, divisionId, teamName, coachName, coachEmail, coachPhone } =
-    parsed.data;
+  const {
+    tournamentId,
+    divisionId,
+    teamName,
+    coachName,
+    coachEmail,
+    coachPhone,
+    vipCode,
+  } = parsed.data;
+
+  if (!process.env.VIP_ACCESS_CODE || vipCode !== process.env.VIP_ACCESS_CODE) {
+    return NextResponse.json({ error: "Invalid VIP code" }, { status: 401 });
+  }
 
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
   });
-
   if (!tournament) {
     return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
   }
 
-  // Enforce the team cap before taking payment.
   const registeredCount = await prisma.registration.count({
     where: { tournamentId, status: { in: ["PAID", "PENDING"] } },
   });
@@ -46,12 +60,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // If a logged-in coach with their own Team account is registering,
-  // link this purchase to that Team -- this is what makes it show up
-  // automatically on their Team profile's tournament history once
-  // paid, with no extra admin step. Derived from the server-side
-  // session only, never trusted from client input, so a purchase can't
-  // be attributed to a team the buyer doesn't own.
   const authSession = await auth();
   let ownTeamId: string | null = null;
   if (authSession?.user?.id) {
@@ -70,38 +78,12 @@ export async function POST(req: NextRequest) {
       coachName,
       coachEmail,
       coachPhone,
-      status: "PENDING",
       teamId: ownTeamId,
+      status: "PAID",
+      paidAt: new Date(),
+      isVipComp: true,
     },
   });
 
-  const checkoutSession = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    customer_email: coachEmail,
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          unit_amount: tournament.entryFeeCents,
-          product_data: {
-            name: `${tournament.name} — ${teamName} entry fee`,
-          },
-        },
-        quantity: 1,
-      },
-    ],
-    metadata: {
-      registrationId: registration.id,
-    },
-    success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/register/success?registration=${registration.id}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/tournaments/${tournamentId}`,
-  });
-
-  await prisma.registration.update({
-    where: { id: registration.id },
-    data: { stripeSessionId: checkoutSession.id },
-  });
-
-  return NextResponse.json({ checkoutUrl: checkoutSession.url });
+  return NextResponse.json({ registrationId: registration.id });
 }

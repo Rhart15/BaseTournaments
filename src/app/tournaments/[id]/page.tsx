@@ -142,7 +142,7 @@ export default async function TournamentDetailPage({
                     {r.teamName}
                   </Link>
                   <span className="text-xs uppercase text-ink/50">
-                    {r.status}
+                    {r.isVipComp ? "PAID (VIP)" : r.status}
                   </span>
                 </li>
               ))}

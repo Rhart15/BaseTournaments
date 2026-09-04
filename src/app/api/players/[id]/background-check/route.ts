@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { canManageTeam } from "@/lib/teamAuth";
 import { prisma } from "@/lib/db";
 
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -14,6 +15,9 @@ export async function POST(
   const player = await prisma.player.findUnique({ where: { id } });
   if (!player) {
     return NextResponse.json({ error: "Player not found." }, { status: 404 });
+  }
+  if (!(await canManageTeam(player.teamId))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const formData = await req.formData();

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canManageTeam } from "@/lib/teamAuth";
 import { prisma } from "@/lib/db";
 
 export async function POST(
@@ -6,6 +7,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  if (!(await canManageTeam(id))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await req.json();
   const { name, role, phone, email, isHousingContact } = body;
 

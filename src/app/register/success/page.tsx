@@ -35,6 +35,11 @@ export default async function RegisterSuccessPage({
             email shortly.
           </p>
         )}
+        {registration?.isVipComp && (
+          <p className="mt-3 inline-block rounded-sm bg-gold/20 px-3 py-1 text-sm font-semibold uppercase tracking-wide text-ink/70">
+            Paid with VIP
+          </p>
+        )}
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           {registration && (
             <Link
