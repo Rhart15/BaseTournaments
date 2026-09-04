@@ -6,6 +6,7 @@ import DirectorRow from "@/components/admin/DirectorRow";
 import AddDirectorForm from "@/components/admin/AddDirectorForm";
 import TeamRow from "@/components/admin/TeamRow";
 import AddTeamForm from "@/components/admin/AddTeamForm";
+import CleanupTestDataButton from "@/components/admin/CleanupTestDataButton";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,7 @@ export default async function AdminPage() {
               {unhandledContacts.length === 1 ? "" : "s"}
             </span>
           )}
+          <CleanupTestDataButton />
         </div>
       </header>
 
