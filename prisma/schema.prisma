@@ -130,11 +130,31 @@ model Registration {
   finalPlacement String?  // e.g. "Champion", "Runner-up", "Lost in Semifinals"
   isVipComp     Boolean   @default(false) // paid via VIP access code, not a real card charge
 
+  // Roster approval -- a coach submits the roster once it's final for this
+  // event, an admin reviews and approves/rejects it. Separate from just
+  // adding/removing players, which stays open the whole time.
+  rosterApprovalStatus RosterApprovalStatus @default(NOT_SUBMITTED)
+  rosterSubmittedAt    DateTime?
+  rosterReviewedAt     DateTime?
+  rosterReviewNote     String?
+
+  // Discount code applied at checkout, if any. Kept even after use so the
+  // amount is visible on the registration later.
+  discountCodeId      String?
+  discountCode        DiscountCode? @relation(fields: [discountCodeId], references: [id])
+  discountAmountCents Int           @default(0)
+
+  // Set when this registration was one of several paid together in a
+  // single cart checkout (see /api/checkout/cart). Null for a normal
+  // one-at-a-time registration.
+  orderGroupId String?
+
   createdAt     DateTime  @default(now())
 
   homeGames Game[] @relation("HomeTeam")
   awayGames Game[] @relation("AwayTeam")
   rosterPlayers RosterPlayer[]
+  guestInvites  GuestPlayerInvite[]
 
   teamId       String?
   team         Team?    @relation(fields: [teamId], references: [id])
@@ -149,8 +169,22 @@ model RosterPlayer {
   lastName     String
   jerseyNumber String?
   position     String?
+  isGuest      Boolean  @default(false) // added via a one-off guest-player invite link
 
   createdAt    DateTime @default(now())
+}
+
+// A shareable, single-use-by-default link a coach (or admin) generates so
+// someone outside the normal team roster flow can add a guest player to a
+// specific tournament registration -- no login required to use the link.
+model GuestPlayerInvite {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  token          String       @unique @default(cuid())
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+  usedAt         DateTime?
 }
 
 model Game {
@@ -207,6 +241,18 @@ enum ComplianceStatus {
   EXPIRED
 }
 
+enum RosterApprovalStatus {
+  NOT_SUBMITTED
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum DiscountType {
+  PERCENT
+  FLAT
+}
+
 // --- User accounts (coaches and parents) -------------------------------
 
 enum UserRole {
@@ -223,6 +269,7 @@ model User {
   phone        String?
   role         UserRole @default(COACH)
   isSuperAdmin Boolean  @default(false)
+  stripeCustomerId String? // lets Stripe Checkout offer their saved card on future registrations
   createdAt    DateTime @default(now())
 
   teams    Team[]
@@ -258,6 +305,8 @@ model Team {
   insuranceStatus ComplianceStatus @default(PENDING)
   insuranceProvider String? // e.g. "Chappell Insurance"
   insuranceExpiresAt DateTime?
+  insuranceFileUrl  String?
+  insuranceFileName String?
 
   createdAt     DateTime @default(now())
 
@@ -312,6 +361,35 @@ model Player {
   backgroundCheckFileName String?
 
   createdAt    DateTime @default(now())
+}
+
+// --- Pricing -------------------------------------------------------------
+
+model DiscountCode {
+  id        String       @id @default(cuid())
+  code      String       @unique // entered by the customer, case-insensitive match handled in code
+  type      DiscountType
+  value     Int          // PERCENT: whole-number percent (10 = 10%). FLAT: cents off.
+  maxUses   Int?         // null = unlimited
+  usedCount Int          @default(0)
+  active    Boolean      @default(true)
+  expiresAt DateTime?
+  createdAt DateTime     @default(now())
+
+  registrations Registration[]
+}
+
+// --- Shared documents (rulebooks, forms) uploaded by BASE staff, visible
+// to every team/director -- distinct from TeamDocument, which is a single
+// team's own uploaded paperwork. ------------------------------------------
+
+model SiteDocument {
+  id        String   @id @default(cuid())
+  label     String
+  category  String   @default("General") // e.g. "Rules", "Forms", "General"
+  fileUrl   String
+  fileName  String
+  createdAt DateTime @default(now())
 }
 
 // --- Content / marketing layer -----------------------------------------

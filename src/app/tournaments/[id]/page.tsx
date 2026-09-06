@@ -189,6 +189,8 @@ export default async function TournamentDetailPage({
             {slotsLeft > 0 && tournament.divisions.length > 0 && !registrationNotYetOpen ? (
               <RegisterForm
                 tournamentId={tournament.id}
+                tournamentName={tournament.name}
+                entryFeeCents={tournament.entryFeeCents}
                 divisions={tournament.divisions.map((d) => ({
                   id: d.id,
                   label: d.label,

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
-import { stripe } from "@/lib/stripe";
+import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
+import { resolveDiscount, recordDiscountCodeUse } from "@/lib/pricing";
 
 const registerSchema = z.object({
   tournamentId: z.string(),
@@ -11,6 +12,7 @@ const registerSchema = z.object({
   coachName: z.string().min(2),
   coachEmail: z.string().email(),
   coachPhone: z.string().min(7),
+  discountCode: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { tournamentId, divisionId, teamName, coachName, coachEmail, coachPhone } =
+  const { tournamentId, divisionId, teamName, coachName, coachEmail, coachPhone, discountCode } =
     parsed.data;
 
   const tournament = await prisma.tournament.findUnique({
@@ -54,12 +56,61 @@ export async function POST(req: NextRequest) {
   // be attributed to a team the buyer doesn't own.
   const authSession = await auth();
   let ownTeamId: string | null = null;
+  let stripeCustomerId: string | undefined;
   if (authSession?.user?.id) {
-    const ownTeam = await prisma.team.findFirst({
-      where: { coachUserId: authSession.user.id },
-      select: { id: true },
-    });
+    const [ownTeam, user] = await Promise.all([
+      prisma.team.findFirst({
+        where: { coachUserId: authSession.user.id },
+        select: { id: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: authSession.user.id },
+        select: { stripeCustomerId: true, email: true, name: true },
+      }),
+    ]);
     ownTeamId = ownTeam?.id ?? null;
+    if (user) {
+      stripeCustomerId = await getOrCreateStripeCustomer({
+        userId: authSession.user.id,
+        existingCustomerId: user.stripeCustomerId,
+        email: user.email,
+        name: user.name,
+      });
+    }
+  }
+
+  const discount = await resolveDiscount({
+    entryFeeCents: tournament.entryFeeCents,
+    codeInput: discountCode,
+    tournamentId,
+    coachEmail,
+  });
+  if (discount.error) {
+    return NextResponse.json({ error: discount.error }, { status: 400 });
+  }
+  const chargeCents = tournament.entryFeeCents - discount.discountCents;
+
+  // A discount code big enough to fully cover the entry fee has nothing
+  // left for Stripe to charge -- confirm it directly instead, the same
+  // way a VIP-comped registration is confirmed with no checkout session.
+  if (chargeCents <= 0) {
+    const registration = await prisma.registration.create({
+      data: {
+        tournamentId,
+        divisionId,
+        teamName,
+        coachName,
+        coachEmail,
+        coachPhone,
+        teamId: ownTeamId,
+        status: "PAID",
+        paidAt: new Date(),
+        discountCodeId: discount.discountCodeId,
+        discountAmountCents: discount.discountCents,
+      },
+    });
+    await recordDiscountCodeUse(discount.discountCodeId);
+    return NextResponse.json({ registrationId: registration.id, free: true });
   }
 
   const registration = await prisma.registration.create({
@@ -72,20 +123,30 @@ export async function POST(req: NextRequest) {
       coachPhone,
       status: "PENDING",
       teamId: ownTeamId,
+      discountCodeId: discount.discountCodeId,
+      discountAmountCents: discount.discountCents,
     },
   });
 
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
-    payment_method_types: ["card"],
-    customer_email: coachEmail,
+    payment_method_types: ["card", "us_bank_account"],
+    ...(stripeCustomerId
+      ? { customer: stripeCustomerId }
+      : { customer_email: coachEmail }),
+    payment_intent_data: {
+      setup_future_usage: "off_session",
+    },
     line_items: [
       {
         price_data: {
           currency: "usd",
-          unit_amount: tournament.entryFeeCents,
+          unit_amount: chargeCents,
           product_data: {
-            name: `${tournament.name} — ${teamName} entry fee`,
+            name:
+              discount.discountCents > 0
+                ? `${tournament.name} — ${teamName} entry fee (discount applied)`
+                : `${tournament.name} — ${teamName} entry fee`,
           },
         },
         quantity: 1,

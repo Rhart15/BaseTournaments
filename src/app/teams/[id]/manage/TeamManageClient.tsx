@@ -4,6 +4,8 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import PrintableRoster from "@/components/PrintableRoster";
+import PrintButton from "@/components/PrintButton";
 
 type Staff = {
   id: string;
@@ -64,6 +66,8 @@ export default function TeamManageClient({
     homeCity: string | null;
     homeState: string;
     logoUrl: string | null;
+    insuranceStatus: string;
+    insuranceFileName: string | null;
   };
   staff: Staff[];
   documents: TeamDoc[];
@@ -96,7 +100,7 @@ export default function TeamManageClient({
   }
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-cream print:hidden">
       <header className="bg-navy px-6 py-5 text-white">
         <Link href={`/teams/${team.id}`} className="text-sm text-white/60 hover:text-white">
           Back to team page
@@ -136,7 +140,7 @@ export default function TeamManageClient({
           {activeTab === "Staff" && <StaffTab teamId={team.id} initialStaff={staff} />}
 
           {activeTab === "Players" && (
-            <PlayersTab teamId={team.id} initialPlayers={players} />
+            <PlayersTab teamId={team.id} teamName={team.name} initialPlayers={players} />
           )}
 
           {activeTab === "Documents" && (
@@ -148,6 +152,87 @@ export default function TeamManageClient({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function InsuranceSection({
+  teamId,
+  insuranceStatus,
+  insuranceFileName,
+}: {
+  teamId: string;
+  insuranceStatus: string;
+  insuranceFileName: string | null;
+}) {
+  const [status, setStatus] = useState(insuranceStatus);
+  const [fileName, setFileName] = useState(insuranceFileName);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+
+  async function handleUpload(file: File) {
+    setUploading(true);
+    setError(null);
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`/api/teams/${teamId}/insurance`, {
+      method: "POST",
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setStatus(data.team.insuranceStatus);
+      setFileName(data.team.insuranceFileName);
+    } else {
+      setError("Couldn't upload that file. Try a PDF, JPG, or PNG under 10MB.");
+    }
+    setUploading(false);
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  return (
+    <div className="mt-8 border-t border-steel/20 pt-6">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/60">
+        Team insurance
+      </h2>
+      <div className="mt-3 flex items-center gap-3">
+        <span
+          className={`h-2 w-2 rounded-full ${
+            status === "APPROVED"
+              ? "bg-green-600"
+              : status === "SUBMITTED"
+              ? "bg-gold"
+              : status === "EXPIRED"
+              ? "bg-red"
+              : "bg-steel/40"
+          }`}
+        />
+        <span className="text-sm font-semibold">{status}</span>
+        {fileName && <span className="text-sm text-ink/60">— {fileName}</span>}
+        <button
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading}
+          className="ml-auto rounded-sm border border-steel/40 px-4 py-2 text-xs font-semibold hover:border-red hover:text-red disabled:opacity-50"
+        >
+          {uploading ? "Uploading..." : fileName ? "Replace proof of insurance" : "Upload proof of insurance"}
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleUpload(file);
+          }}
+        />
+      </div>
+      {error && <p className="mt-2 text-xs text-red">{error}</p>}
+      <p className="mt-2 text-xs text-ink/50">
+        Upload your team&apos;s current insurance certificate. BASE staff reviews
+        it and updates the status above once approved.
+      </p>
     </div>
   );
 }
@@ -251,6 +336,12 @@ function TeamInfoTab({
           className="hidden"
         />
       </div>
+
+      <InsuranceSection
+        teamId={team.id}
+        insuranceStatus={team.insuranceStatus}
+        insuranceFileName={team.insuranceFileName}
+      />
 
       <div className="mt-8 flex items-center justify-between border-t border-steel/20 pt-6">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/60">
@@ -552,9 +643,11 @@ function StaffTab({
 
 function PlayersTab({
   teamId,
+  teamName,
   initialPlayers,
 }: {
   teamId: string;
+  teamName: string;
   initialPlayers: PlayerRow[];
 }) {
   const [copied, setCopied] = useState(false);
@@ -574,6 +667,22 @@ function PlayersTab({
   const [editJersey, setEditJersey] = useState("");
   const [editPosition, setEditPosition] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  async function handleUploadCheck(playerId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`/api/players/${playerId}/background-check`, {
+      method: "POST",
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setPlayerList((prev) =>
+        prev.map((p) => (p.id === playerId ? { ...p, ...data.player } : p))
+      );
+    }
+  }
 
   function startEdit(p: PlayerRow) {
     setEditingId(p.id);
@@ -607,6 +716,9 @@ function PlayersTab({
 
   return (
     <div className="rounded-sm border border-steel/20 bg-white p-6">
+      <div className="mb-6 flex justify-end">
+        <PrintButton />
+      </div>
       <div className="mb-6 rounded-sm border border-gold/40 bg-gold/10 p-4">
         <p className="text-sm font-semibold">
           Send this link to parents so they can add their athlete directly:
@@ -632,6 +744,7 @@ function PlayersTab({
             <th className="py-2">Name</th>
             <th>#</th>
             <th>Position</th>
+            <th>Background check</th>
             <th></th>
           </tr>
         </thead>
@@ -664,6 +777,38 @@ function PlayersTab({
                   <td>{p.position ?? "-"}</td>
                 </>
               )}
+              <td>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      p.backgroundCheckStatus === "APPROVED"
+                        ? "bg-green-600"
+                        : p.backgroundCheckStatus === "SUBMITTED"
+                        ? "bg-gold"
+                        : "bg-steel/40"
+                    }`}
+                  />
+                  <button
+                    onClick={() => fileInputs.current[p.id]?.click()}
+                    className="text-xs font-semibold text-red hover:text-red-dark"
+                  >
+                    {p.backgroundCheckFileName ? "Replace" : "Upload"}
+                  </button>
+                  <input
+                    ref={(el) => {
+                      fileInputs.current[p.id] = el;
+                    }}
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadCheck(p.id, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+              </td>
               <td className="text-right">
                 {editingId === p.id ? (
                   <div className="flex justify-end gap-2">
@@ -702,13 +847,18 @@ function PlayersTab({
           ))}
           {playerList.length === 0 && (
             <tr>
-              <td colSpan={4} className="py-6 text-center text-ink/50">
+              <td colSpan={5} className="py-6 text-center text-ink/50">
                 No players on this roster yet.
               </td>
             </tr>
           )}
         </tbody>
       </table>
+      <PrintableRoster
+        title={teamName}
+        subtitle="Full team roster"
+        players={playerList}
+      />
     </div>
   );
 }

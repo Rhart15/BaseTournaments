@@ -21,6 +21,7 @@ const toolsLinks = [
   { href: "#", label: "Background check" },
   { href: "/rules", label: "BASE official rules" },
   { href: "/directors", label: "Director recruitment" },
+  { href: "/documents", label: "Documents" },
 ];
 
 const allMobileLinks = [

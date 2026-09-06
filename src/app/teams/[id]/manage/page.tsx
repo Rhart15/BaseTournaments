@@ -44,6 +44,8 @@ export default async function TeamManagePage({
         homeCity: team.homeCity,
         homeState: team.homeState,
         logoUrl: team.logoUrl,
+        insuranceStatus: team.insuranceStatus,
+        insuranceFileName: team.insuranceFileName,
       }}
       staff={team.staff.map((s) => ({
         id: s.id,

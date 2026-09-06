@@ -1,19 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useCart } from "@/components/CartContext";
 
 export default function RegisterForm({
   tournamentId,
+  tournamentName,
+  entryFeeCents,
   divisions,
 }: {
   tournamentId: string;
+  tournamentName: string;
+  entryFeeCents: number;
   divisions: { id: string; label: string }[];
 }) {
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const { addItem, items } = useCart();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "vip">("card");
+  const [added, setAdded] = useState(false);
+
+  function handleAddToCart() {
+    const form = formRef.current;
+    if (!form) return;
+    const divisionId = (form.elements.namedItem("divisionId") as HTMLSelectElement)?.value;
+    const teamName = (form.elements.namedItem("teamName") as HTMLInputElement)?.value?.trim();
+
+    if (!divisionId || !teamName || teamName.length < 2) {
+      setError("Enter a division and team name before adding to cart.");
+      return;
+    }
+    setError(null);
+    const division = divisions.find((d) => d.id === divisionId);
+    addItem({
+      key: `${tournamentId}-${divisionId}-${teamName}`,
+      tournamentId,
+      divisionId,
+      tournamentName,
+      divisionLabel: division?.label ?? "",
+      teamName,
+      entryFeeCents,
+    });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,6 +62,7 @@ export default function RegisterForm({
       coachName: formData.get("coachName"),
       coachEmail: formData.get("coachEmail"),
       coachPhone: formData.get("coachPhone"),
+      discountCode: formData.get("discountCode") || undefined,
       ...(paymentMethod === "vip" && { vipCode: formData.get("vipCode") }),
     };
 
@@ -50,6 +85,8 @@ export default function RegisterForm({
 
       if (paymentMethod === "vip") {
         router.push(`/register/success?registration=${data.registrationId}`);
+      } else if (data.free) {
+        router.push(`/register/success?registration=${data.registrationId}`);
       } else {
         window.location.href = data.checkoutUrl;
       }
@@ -60,7 +97,7 @@ export default function RegisterForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="text-sm font-medium">Division</label>
         <select
@@ -109,6 +146,15 @@ export default function RegisterForm({
           type="tel"
           required
           className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Discount code (optional)</label>
+        <input
+          name="discountCode"
+          className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2 text-sm uppercase"
+          placeholder="Enter a code if you have one"
         />
       </div>
 
@@ -172,6 +218,23 @@ export default function RegisterForm({
           ? "VIP registrations are confirmed instantly, no charge."
           : "Secure checkout powered by Stripe."}
       </p>
+
+      <div className="border-t border-steel/20 pt-4 text-center">
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          className="text-sm font-semibold text-navy underline hover:text-red"
+        >
+          {added ? "Added!" : "Add to cart instead (pay for multiple events at once)"}
+        </button>
+        {items.length > 0 && (
+          <p className="mt-2 text-xs text-ink/50">
+            <Link href="/cart" className="underline hover:text-red">
+              View cart ({items.length})
+            </Link>
+          </p>
+        )}
+      </div>
     </form>
   );
 }

@@ -8,6 +8,7 @@ type RosterPlayer = {
   lastName: string;
   jerseyNumber: string | null;
   position: string | null;
+  isGuest?: boolean;
 };
 
 export default function RosterManager({
@@ -25,6 +26,38 @@ export default function RosterManager({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [guestLink, setGuestLink] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function handleGenerateGuestLink() {
+    setGeneratingLink(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/registrations/${registrationId}/guest-invite`,
+        { method: "POST" }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't create a guest link.");
+        setGeneratingLink(false);
+        return;
+      }
+      setGuestLink(data.url);
+      setGeneratingLink(false);
+    } catch {
+      setError("Couldn't reach the server. Please try again.");
+      setGeneratingLink(false);
+    }
+  }
+
+  function handleCopyLink() {
+    if (!guestLink) return;
+    navigator.clipboard.writeText(guestLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -94,6 +127,38 @@ export default function RosterManager({
 
   return (
     <div>
+      <div className="mb-6 rounded-sm border border-gold/40 bg-gold/10 p-4">
+        <p className="text-sm font-semibold">
+          Need a guest player for this event? Generate a link you can send
+          directly to a guest&apos;s parent -- no account needed on their end.
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          {guestLink ? (
+            <>
+              <input
+                readOnly
+                value={guestLink}
+                className="flex-1 rounded-sm border border-steel/40 bg-white px-3 py-2 text-xs"
+              />
+              <button
+                onClick={handleCopyLink}
+                className="rounded-sm bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-deep"
+              >
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleGenerateGuestLink}
+              disabled={generatingLink}
+              className="rounded-sm bg-navy px-4 py-2 text-xs font-semibold text-white hover:bg-navy-deep disabled:opacity-60"
+            >
+              {generatingLink ? "Generating..." : "Generate guest player link"}
+            </button>
+          )}
+        </div>
+      </div>
+
       {players.length === 0 ? (
         <p className="text-sm text-ink/60">
           No players on the roster yet - add your first below.
@@ -113,6 +178,11 @@ export default function RosterManager({
               <tr key={p.id} className="border-b border-steel/10">
                 <td className="py-2 font-semibold">
                   {p.firstName} {p.lastName}
+                  {p.isGuest && (
+                    <span className="ml-2 rounded-sm bg-steel/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ink/60">
+                      Guest
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 text-ink/70">{p.jerseyNumber ?? "-"}</td>
                 <td className="py-2 text-ink/70">{p.position ?? "-"}</td>

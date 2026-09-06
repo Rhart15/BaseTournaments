@@ -57,6 +57,18 @@ export default async function AdminPage() {
               Manage admins
             </Link>
           )}
+          <Link
+            href="/admin/discount-codes"
+            className="text-sm text-white/70 underline hover:text-white"
+          >
+            Discount codes
+          </Link>
+          <Link
+            href="/admin/documents"
+            className="text-sm text-white/70 underline hover:text-white"
+          >
+            Documents
+          </Link>
           {unhandledContacts.length > 0 && (
             <span className="rounded-sm bg-red px-3 py-1 text-xs font-semibold">
               {unhandledContacts.length} new message
@@ -190,6 +202,7 @@ export default async function AdminPage() {
                     directorId: t.directorId,
                     director: t.director ? { name: t.director.name } : null,
                     insuranceStatus: t.insuranceStatus,
+                    insuranceFileUrl: t.insuranceFileUrl,
                     playerCount: t._count.players,
                   }}
                   directors={directors}

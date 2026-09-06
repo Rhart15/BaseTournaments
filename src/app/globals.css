@@ -69,3 +69,12 @@ h1, h2, h3, .display {
 .seam-divider::after {
   top: 3px;
 }
+
+/* Used by "Print roster" buttons: the printable block is normally
+   hidden (Tailwind's `hidden print:block`) and only the roster itself
+   should print, not the site header/nav around it. */
+@media print {
+  @page {
+    margin: 0.75in;
+  }
+}

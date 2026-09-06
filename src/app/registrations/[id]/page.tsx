@@ -2,8 +2,11 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
+import PrintableRoster from "@/components/PrintableRoster";
 import { prisma } from "@/lib/db";
 import RosterManager from "./RosterManager";
+import RosterApprovalBanner from "./RosterApprovalBanner";
+import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +30,8 @@ export default async function RegistrationDetailPage({
 
   return (
     <>
-      <SiteHeader />
+      <div className="print:hidden">
+        <SiteHeader />
 
       <section className="bg-navy py-14 text-white">
         <div className="mx-auto max-w-4xl px-6">
@@ -76,12 +80,23 @@ export default async function RegistrationDetailPage({
 
         <div className="seam-divider my-10" />
 
-        <h2 className="display text-2xl">Team roster</h2>
-        <p className="mt-2 text-sm text-ink/60">
-          Add or remove players on this team's roster for this tournament.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="display text-2xl">Team roster</h2>
+            <p className="mt-2 text-sm text-ink/60">
+              Add or remove players on this team&apos;s roster for this tournament.
+            </p>
+          </div>
+          <PrintButton />
+        </div>
 
         <div className="mt-6">
+          <RosterApprovalBanner
+            registrationId={registration.id}
+            initialStatus={registration.rosterApprovalStatus}
+            reviewNote={registration.rosterReviewNote}
+            hasPlayers={registration.rosterPlayers.length > 0}
+          />
           <RosterManager
             registrationId={registration.id}
             initialPlayers={registration.rosterPlayers.map((p) => ({
@@ -90,12 +105,20 @@ export default async function RegistrationDetailPage({
               lastName: p.lastName,
               jerseyNumber: p.jerseyNumber,
               position: p.position,
+              isGuest: p.isGuest,
             }))}
           />
         </div>
       </section>
 
       <SiteFooter />
+      </div>
+
+      <PrintableRoster
+        title={registration.teamName}
+        subtitle={`${registration.tournament.name} — ${registration.division.label}`}
+        players={registration.rosterPlayers}
+      />
     </>
   );
 }

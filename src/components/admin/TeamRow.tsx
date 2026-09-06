@@ -15,6 +15,7 @@ type Team = {
   directorId: string | null;
   director: { name: string } | null;
   insuranceStatus: string;
+  insuranceFileUrl: string | null;
   playerCount: number;
 };
 
@@ -165,12 +166,24 @@ export default function TeamRow({
       <td>{team.director?.name ?? "-"}</td>
       <td>{team.playerCount}</td>
       <td>
-        <StatusSelect
-          endpoint={`/api/admin/teams/${team.id}`}
-          field="insuranceStatus"
-          value={team.insuranceStatus}
-          options={["PENDING", "SUBMITTED", "APPROVED", "EXPIRED"]}
-        />
+        <div className="flex items-center gap-2">
+          <StatusSelect
+            endpoint={`/api/admin/teams/${team.id}`}
+            field="insuranceStatus"
+            value={team.insuranceStatus}
+            options={["PENDING", "SUBMITTED", "APPROVED", "EXPIRED"]}
+          />
+          {team.insuranceFileUrl && (
+            <a
+              href={team.insuranceFileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-semibold text-red hover:text-red-dark"
+            >
+              View
+            </a>
+          )}
+        </div>
       </td>
       <td className="text-right">
         <button

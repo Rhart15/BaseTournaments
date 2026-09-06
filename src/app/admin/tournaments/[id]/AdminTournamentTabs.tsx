@@ -67,7 +67,15 @@ export default function AdminTournamentTabs({
         <Link href="/admin" className="text-sm text-white/60 hover:text-white">
           Back to all tournaments
         </Link>
-        <h1 className="display mt-1 text-2xl">{tournamentName}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="display mt-1 text-2xl">{tournamentName}</h1>
+          <Link
+            href={`/admin/tournaments/${tournamentId}/rosters`}
+            className="text-sm text-white/70 underline hover:text-white"
+          >
+            Roster approvals
+          </Link>
+        </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-6 py-8">

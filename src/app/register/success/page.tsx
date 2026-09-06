@@ -8,9 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function RegisterSuccessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ registration?: string }>;
+  searchParams: Promise<{ registration?: string; order?: string }>;
 }) {
-  const { registration: registrationId } = await searchParams;
+  const { registration: registrationId, order: orderGroupId } = await searchParams;
+
   const registration = registrationId
     ? await prisma.registration.findUnique({
         where: { id: registrationId },
@@ -18,12 +19,41 @@ export default async function RegisterSuccessPage({
       })
     : null;
 
+  const orderRegistrations = orderGroupId
+    ? await prisma.registration.findMany({
+        where: { orderGroupId },
+        include: { tournament: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
   return (
     <>
       <SiteHeader />
       <section className="mx-auto max-w-2xl px-6 py-20 text-center">
         <h1 className="display text-4xl">You&apos;re registered!</h1>
-        {registration ? (
+
+        {orderRegistrations.length > 0 ? (
+          <div className="mt-6 space-y-3 text-left">
+            {orderRegistrations.map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between rounded-sm border border-steel/20 p-4"
+              >
+                <div>
+                  <p className="font-semibold">{r.teamName}</p>
+                  <p className="text-sm text-ink/60">{r.tournament.name}</p>
+                </div>
+                <Link
+                  href={`/registrations/${r.id}`}
+                  className="text-sm font-semibold text-red hover:text-red-dark"
+                >
+                  Manage roster
+                </Link>
+              </div>
+            ))}
+          </div>
+        ) : registration ? (
           <p className="mt-4 text-ink/70">
             {registration.teamName} is confirmed for{" "}
             {registration.tournament.name}. A confirmation has been sent to{" "}
