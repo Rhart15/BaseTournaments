@@ -253,6 +253,8 @@ function TeamInfoTab({
     homeCity: string | null;
     homeState: string;
     logoUrl: string | null;
+    insuranceStatus: string;
+    insuranceFileName: string | null;
   };
   logoUrl: string | null;
   uploadingLogo: boolean;
