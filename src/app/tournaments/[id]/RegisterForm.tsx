@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useCart } from "@/components/CartContext";
 
@@ -17,11 +18,13 @@ export default function RegisterForm({
   divisions: { id: string; label: string }[];
 }) {
   const router = useRouter();
+  const { data: session } = useSession();
   const formRef = useRef<HTMLFormElement>(null);
   const { addItem, items } = useCart();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "vip">("card");
+  const [paymentMethod, setPaymentMethod] = useState<"card" | "vip" | "plan">("card");
+  const [installmentCount, setInstallmentCount] = useState(3);
   const [added, setAdded] = useState(false);
 
   function handleAddToCart() {
@@ -55,7 +58,7 @@ export default function RegisterForm({
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const payload = {
+    const basePayload = {
       tournamentId,
       divisionId: formData.get("divisionId"),
       teamName: formData.get("teamName"),
@@ -63,18 +66,27 @@ export default function RegisterForm({
       coachEmail: formData.get("coachEmail"),
       coachPhone: formData.get("coachPhone"),
       discountCode: formData.get("discountCode") || undefined,
-      ...(paymentMethod === "vip" && { vipCode: formData.get("vipCode") }),
     };
+    const payload =
+      paymentMethod === "vip"
+        ? { ...basePayload, vipCode: formData.get("vipCode") }
+        : paymentMethod === "plan"
+        ? { ...basePayload, installmentCount }
+        : basePayload;
+
+    const endpoint =
+      paymentMethod === "vip"
+        ? "/api/checkout/vip"
+        : paymentMethod === "plan"
+        ? "/api/checkout/plan"
+        : "/api/checkout";
 
     try {
-      const res = await fetch(
-        paymentMethod === "vip" ? "/api/checkout/vip" : "/api/checkout",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
 
       if (!res.ok) {
@@ -83,9 +95,7 @@ export default function RegisterForm({
         return;
       }
 
-      if (paymentMethod === "vip") {
-        router.push(`/register/success?registration=${data.registrationId}`);
-      } else if (data.free) {
+      if (paymentMethod === "vip" || data.free) {
         router.push(`/register/success?registration=${data.registrationId}`);
       } else {
         window.location.href = data.checkoutUrl;
@@ -172,6 +182,19 @@ export default function RegisterForm({
           >
             Card
           </button>
+          {session?.user && (
+            <button
+              type="button"
+              onClick={() => setPaymentMethod("plan")}
+              className={`flex-1 rounded-sm border px-3 py-2 text-sm font-semibold ${
+                paymentMethod === "plan"
+                  ? "border-navy bg-navy/5 text-navy"
+                  : "border-steel/40 text-ink/60 hover:border-navy"
+              }`}
+            >
+              Payment plan
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setPaymentMethod("vip")}
@@ -184,7 +207,37 @@ export default function RegisterForm({
             VIP
           </button>
         </div>
+        {!session?.user && (
+          <p className="mt-2 text-xs text-ink/50">
+            <Link href="/login" className="underline hover:text-red">
+              Log in
+            </Link>{" "}
+            to pay with a payment plan instead of all at once.
+          </p>
+        )}
       </div>
+
+      {paymentMethod === "plan" && (
+        <div>
+          <label className="text-sm font-medium">
+            Number of installments
+          </label>
+          <select
+            value={installmentCount}
+            onChange={(e) => setInstallmentCount(Number(e.target.value))}
+            className="mt-1 w-full rounded-sm border border-steel/40 px-3 py-2 text-sm"
+          >
+            <option value={2}>2 payments, 30 days apart</option>
+            <option value={3}>3 payments, 30 days apart</option>
+            <option value={4}>4 payments, 30 days apart</option>
+          </select>
+          <p className="mt-2 text-xs text-ink/50">
+            First payment (${(entryFeeCents / installmentCount / 100).toFixed(2)}
+            {" "}approx.) charges today to the card you enter; the rest are
+            charged automatically to the same card on their due dates.
+          </p>
+        </div>
+      )}
 
       {paymentMethod === "vip" && (
         <div>
@@ -211,6 +264,8 @@ export default function RegisterForm({
             : "Redirecting to payment…"
           : paymentMethod === "vip"
           ? "Confirm VIP registration"
+          : paymentMethod === "plan"
+          ? "Start payment plan"
           : "Register & pay"}
       </button>
       <p className="text-center text-xs text-ink/50">

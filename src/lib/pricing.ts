@@ -82,3 +82,26 @@ export async function recordDiscountCodeUse(discountCodeId: string | null) {
     data: { usedCount: { increment: 1 } },
   });
 }
+
+// Marks one payment-plan installment paid, and -- once every installment
+// on that registration has cleared -- flips the registration itself to
+// PAID. Used by the Stripe webhook (first installment, paid via Checkout)
+// and by the scheduled job / manual retry (later installments, charged
+// off-session).
+export async function markInstallmentPaid(installmentId: string) {
+  const installment = await prisma.paymentInstallment.update({
+    where: { id: installmentId },
+    data: { status: "PAID", paidAt: new Date() },
+  });
+
+  const remaining = await prisma.paymentInstallment.count({
+    where: { registrationId: installment.registrationId, status: { not: "PAID" } },
+  });
+  if (remaining === 0) {
+    const registration = await prisma.registration.update({
+      where: { id: installment.registrationId },
+      data: { status: "PAID", paidAt: new Date() },
+    });
+    await recordDiscountCodeUse(registration.discountCodeId);
+  }
+}

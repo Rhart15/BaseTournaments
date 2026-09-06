@@ -6,6 +6,7 @@ import PrintableRoster from "@/components/PrintableRoster";
 import { prisma } from "@/lib/db";
 import RosterManager from "./RosterManager";
 import RosterApprovalBanner from "./RosterApprovalBanner";
+import InstallmentSchedule from "./InstallmentSchedule";
 import PrintButton from "@/components/PrintButton";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ export default async function RegistrationDetailPage({
       tournament: true,
       division: true,
       rosterPlayers: { orderBy: { lastName: "asc" } },
+      installments: { orderBy: { dueDate: "asc" } },
     },
   });
 
@@ -77,6 +79,17 @@ export default async function RegistrationDetailPage({
             </p>
           </div>
         </div>
+
+        <InstallmentSchedule
+          registrationId={registration.id}
+          installments={registration.installments.map((i) => ({
+            id: i.id,
+            dueDate: i.dueDate.toISOString(),
+            amountCents: i.amountCents,
+            status: i.status,
+            lastError: i.lastError,
+          }))}
+        />
 
         <div className="seam-divider my-10" />
 

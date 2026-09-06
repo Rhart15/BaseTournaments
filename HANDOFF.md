@@ -1,43 +1,32 @@
-# Tier 1 + Tier 2 batch — how to merge, migrate, and push
+# Payment plans batch — how to merge, migrate, and push
 
-This zip contains 42 files (every changed/new file across both Tier 1 and
-Tier 2), same folder structure as your repo. Extracting it will re-apply
-Tier 1 (safe, identical content to what's already in your working
-directory) and add everything new from Tier 2.
+This zip is smaller than the last two -- it only contains the 11 files
+touched by the new payment-plan feature, since Tier 1 and Tier 2 are
+already live on your site.
 
 ## What's in this batch
 
-**Tier 1:** insurance upload, discount codes, document library, guest
-player invites, roster submission & approval.
+Coaches who are logged in can now choose "Payment plan" at checkout
+(2-4 installments, 30 days apart). The first installment charges
+immediately; the rest are charged automatically to the same saved card
+by a scheduled job that runs once a day. If an automatic charge fails
+(card declined, expired, etc.), the coach sees it on their registration
+page with a "Retry payment" button.
 
-**Tier 2:** eCheck/ACH payment, saved payment methods, print roster,
-multi-event cart checkout.
-
-## 1. Clean up first
-
-Before extracting, make sure there's no leftover `tier1-package` folder:
-
-```powershell
-Remove-Item -Recurse -Force ".\tier1-package" -ErrorAction SilentlyContinue
-```
-
-## 2. Extract this zip
+## 1. Extract this zip
 
 ```powershell
-Expand-Archive -Path "$HOME\Downloads\tier2-package.zip" -DestinationPath "." -Force
+Expand-Archive -Path "$HOME\Downloads\plan-package.zip" -DestinationPath "." -Force
 ```
 
-## 3. Verify it landed correctly
+## 2. Verify it landed
 
 ```powershell
-(Get-Item "prisma\schema.prisma").Length
-Select-String -Path "prisma\schema.prisma" -Pattern "DiscountCode|orderGroupId"
+Select-String -Path "prisma\schema.prisma" -Pattern "PaymentInstallment"
 ```
+Should show real matches.
 
-The file should be a good bit larger than 11726 bytes now (Tier 2 added
-more schema fields), and both patterns should show real matches.
-
-## 4. Update the database schema
+## 3. Update the database schema
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
@@ -45,9 +34,23 @@ npx prisma generate
 npx prisma db push
 ```
 
-`db push` should list real changes this time (new `orderGroupId` column,
-`stripeCustomerId` on User, etc.) — if it says "already in sync," stop and
-check step 3 again before continuing.
+## 4. One-time setup: a CRON_SECRET
+
+The daily job that charges later installments needs a secret so nobody
+else can trigger it early. Generate one and add it in **Vercel**, not
+just locally (this one has to exist on Vercel itself, since that's
+where the scheduled job actually runs):
+
+```powershell
+$secret = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 40 | ForEach-Object {[char]$_})
+Write-Output $secret
+```
+
+Copy the value it prints, then in the Vercel dashboard: your project →
+**Environment Variables** → add a new one named `CRON_SECRET` with that
+value, for Production. (Also add it to your local `.env.local` as
+`CRON_SECRET=<same value>` if you want to test the cron endpoint locally,
+though that's optional -- it only really matters once deployed.)
 
 ## 5. Test locally
 
@@ -55,13 +58,10 @@ check step 3 again before continuing.
 npm run dev
 ```
 
-Click through:
-- Everything from the original Tier 1 checklist (insurance, discount
-  codes, documents, guest player link, roster approval)
-- Add a tournament to your cart, add a second one, go to `/cart`, check
-  out both together
-- On a registration page, check the "Print roster" button opens a clean
-  printable view
+Log in as a coach account, go to any tournament's registration form, and
+check "Payment plan" now shows up as an option with an installment-count
+selector. You don't need to actually complete a real Stripe payment to
+confirm the UI renders correctly.
 
 Stop the server with `Ctrl+C` when done.
 
@@ -72,18 +72,19 @@ git add -A
 git status
 ```
 
-Check the output shows real paths (`src/app/cart/...`, `src/lib/stripe.ts`,
-etc.) — **not** another `tier1-package/` folder. If it looks right:
+Should show exactly these 11 files as modified/new — nothing else. If
+that looks right:
 
 ```powershell
-git commit -m "Add discount codes, insurance, documents, guest players, roster approval, cart checkout, ACH payments, saved cards, print roster"
+git commit -m "Add payment plan installments with automatic scheduled charging"
 git push
 ```
 
-## One more thing worth knowing
+## Worth knowing
 
-`us_bank_account` (ACH/eCheck) needs to be enabled in your Stripe
-dashboard's payment methods settings before it'll actually show up at
-checkout — the code change alone isn't enough on Stripe's end. Not
-urgent since you're still on placeholder Stripe keys, just flagging it
-for whenever you're ready to go live with real payments.
+- The scheduled job runs once a day (1pm UTC) via Vercel Cron — this is
+  configured in `vercel.json`. Vercel's free Hobby plan supports this.
+- If a coach's card fails on an automatic charge, nothing emails them
+  automatically yet — they'd need to check their registration page to
+  see the "Retry payment" button. Worth keeping in mind if a team's
+  payment silently fails and nobody notices for a while.

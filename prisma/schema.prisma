@@ -149,6 +149,8 @@ model Registration {
   // one-at-a-time registration.
   orderGroupId String?
 
+  installments PaymentInstallment[]
+
   createdAt     DateTime  @default(now())
 
   homeGames Game[] @relation("HomeTeam")
@@ -158,6 +160,27 @@ model Registration {
 
   teamId       String?
   team         Team?    @relation(fields: [teamId], references: [id])
+}
+
+// A registration paid via a payment plan gets split into these instead of
+// one lump-sum Stripe charge. The first is charged immediately at
+// checkout; later ones are attempted automatically on their due date by
+// a scheduled job (see /api/cron/charge-installments), using the card
+// saved to the coach's Stripe Customer at checkout time.
+model PaymentInstallment {
+  id             String            @id @default(cuid())
+  registrationId String
+  registration   Registration      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  dueDate      DateTime
+  amountCents  Int
+  status       InstallmentStatus  @default(PENDING)
+  paidAt       DateTime?
+  attemptCount Int                @default(0)
+  lastError    String?
+  stripePaymentIntentId String?
+
+  createdAt DateTime @default(now())
 }
 
 model RosterPlayer {
@@ -251,6 +274,12 @@ enum RosterApprovalStatus {
 enum DiscountType {
   PERCENT
   FLAT
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  FAILED
 }
 
 // --- User accounts (coaches and parents) -------------------------------

@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { recordDiscountCodeUse } from "@/lib/pricing";
+import { recordDiscountCodeUse, markInstallmentPaid } from "@/lib/pricing";
 
-// A checkout session is either a single registration (metadata.registrationId)
-// or a cart of several registered together (metadata.orderGroupId). Marks
-// whichever ones it refers to PAID and records each one's discount code use.
+// A checkout session is either a single registration (metadata.registrationId),
+// a cart of several registered together (metadata.orderGroupId), or the
+// first installment of a payment plan (metadata.installmentId). Marks
+// whichever one it refers to PAID and records discount code use.
 async function markPaid(session: Stripe.Checkout.Session) {
-  const { registrationId, orderGroupId } = session.metadata ?? {};
+  const { registrationId, orderGroupId, installmentId } = session.metadata ?? {};
+
+  if (installmentId) {
+    await markInstallmentPaid(installmentId);
+    return;
+  }
 
   if (orderGroupId) {
     const registrations = await prisma.registration.findMany({
@@ -34,8 +40,15 @@ async function markPaid(session: Stripe.Checkout.Session) {
 }
 
 async function revertToPending(session: Stripe.Checkout.Session) {
-  const { registrationId, orderGroupId } = session.metadata ?? {};
+  const { registrationId, orderGroupId, installmentId } = session.metadata ?? {};
 
+  if (installmentId) {
+    await prisma.paymentInstallment.update({
+      where: { id: installmentId },
+      data: { status: "FAILED" },
+    });
+    return;
+  }
   if (orderGroupId) {
     await prisma.registration.updateMany({
       where: { orderGroupId },
