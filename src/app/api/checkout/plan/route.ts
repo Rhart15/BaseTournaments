@@ -73,12 +73,21 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Account not found" }, { status: 404 });
   }
-  const stripeCustomerId = await getOrCreateStripeCustomer({
-    userId: authSession.user.id,
-    existingCustomerId: user.stripeCustomerId,
-    email: user.email,
-    name: user.name,
-  });
+  let stripeCustomerId: string;
+  try {
+    stripeCustomerId = await getOrCreateStripeCustomer({
+      userId: authSession.user.id,
+      existingCustomerId: user.stripeCustomerId,
+      email: user.email,
+      name: user.name,
+    });
+  } catch (err) {
+    console.error("Couldn't set up a Stripe customer for a payment plan:", err);
+    return NextResponse.json(
+      { error: "Couldn't set up automatic billing right now. Try Card instead, or try again shortly." },
+      { status: 502 }
+    );
+  }
 
   const discount = await resolveDiscount({
     entryFeeCents: tournament.entryFeeCents,

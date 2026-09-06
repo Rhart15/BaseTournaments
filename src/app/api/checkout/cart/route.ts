@@ -76,12 +76,16 @@ export async function POST(req: NextRequest) {
     ]);
     ownTeamId = ownTeam?.id ?? null;
     if (user) {
-      stripeCustomerId = await getOrCreateStripeCustomer({
-        userId: authSession.user.id,
-        existingCustomerId: user.stripeCustomerId,
-        email: user.email,
-        name: user.name,
-      });
+      try {
+        stripeCustomerId = await getOrCreateStripeCustomer({
+          userId: authSession.user.id,
+          existingCustomerId: user.stripeCustomerId,
+          email: user.email,
+          name: user.name,
+        });
+      } catch (err) {
+        console.error("Couldn't create/fetch Stripe customer, proceeding without one:", err);
+      }
     }
   }
 

@@ -70,12 +70,19 @@ export async function POST(req: NextRequest) {
     ]);
     ownTeamId = ownTeam?.id ?? null;
     if (user) {
-      stripeCustomerId = await getOrCreateStripeCustomer({
-        userId: authSession.user.id,
-        existingCustomerId: user.stripeCustomerId,
-        email: user.email,
-        name: user.name,
-      });
+      // If Stripe is unreachable or misconfigured (e.g. placeholder keys
+      // during setup), don't let that crash checkout for a logged-in
+      // coach -- just proceed without a saved customer, same as a guest.
+      try {
+        stripeCustomerId = await getOrCreateStripeCustomer({
+          userId: authSession.user.id,
+          existingCustomerId: user.stripeCustomerId,
+          email: user.email,
+          name: user.name,
+        });
+      } catch (err) {
+        console.error("Couldn't create/fetch Stripe customer, proceeding without one:", err);
+      }
     }
   }
 
