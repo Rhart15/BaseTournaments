@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { guardGame } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 const scoreSchema = z.object({
@@ -7,14 +8,17 @@ const scoreSchema = z.object({
   awayScore: z.number().int().min(0),
 });
 
-// Auth for this route is enforced in middleware.ts (any path ending in
-// /score under /api/games/ requires an ADMIN-role session or the legacy
-// admin cookie), not here -- see the isProtectedApi check there.
+// Score entry -- restricted to an admin who owns the tournament this
+// game belongs to (a lead admin owns every tournament).
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  const g = await guardGame(id);
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
+
   const body = await req.json();
   const parsed = scoreSchema.safeParse(body);
 

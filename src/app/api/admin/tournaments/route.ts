@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminAuthed } from "@/lib/adminAuth";
+import { guardAdmin, isLeadAdmin } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
-  if (!(await isAdminAuthed())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const g = await guardAdmin();
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
+  const { session } = g;
 
   const body = await req.json();
   const {
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     teamCap,
     description,
     divisionLabels,
+    ownerId: requestedOwnerId,
   } = body;
 
   if (!name || !sport || !startDate || !endDate || !city || !teamCap) {
@@ -26,6 +27,27 @@ export async function POST(req: NextRequest) {
       { error: "Name, sport, dates, city, and team cap are required." },
       { status: 400 }
     );
+  }
+
+  // A new tournament belongs to whoever created it. Only a lead admin may
+  // hand it to a different organizer at creation time (e.g. setting one up
+  // on another director's behalf).
+  let ownerId = session.user.id;
+  if (requestedOwnerId && requestedOwnerId !== session.user.id) {
+    if (!isLeadAdmin(session)) {
+      return NextResponse.json(
+        { error: "Only a lead admin can create a tournament for another organizer." },
+        { status: 403 }
+      );
+    }
+    const target = await prisma.user.findUnique({ where: { id: requestedOwnerId } });
+    if (!target || target.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "The chosen organizer isn't an admin account." },
+        { status: 400 }
+      );
+    }
+    ownerId = requestedOwnerId;
   }
 
   const tournament = await prisma.tournament.create({
@@ -39,6 +61,7 @@ export async function POST(req: NextRequest) {
       entryFeeCents: Math.round(Number(entryFeeDollars || 0) * 100),
       teamCap: Number(teamCap),
       description: description || null,
+      ownerId,
     },
   });
 

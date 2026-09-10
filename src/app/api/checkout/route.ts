@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
+import { resolveTournamentPayout, feeFor } from "@/lib/connect";
 import { resolveDiscount, recordDiscountCodeUse } from "@/lib/pricing";
 
 const registerSchema = z.object({
@@ -35,6 +36,13 @@ export async function POST(req: NextRequest) {
 
   if (!tournament) {
     return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+  }
+
+  // The tournament can only take registrations once its organizer has an
+  // onboarded Stripe Connect account to route the payment to.
+  const payout = await resolveTournamentPayout(tournamentId);
+  if (!payout.ok) {
+    return NextResponse.json({ error: payout.reason }, { status: 409 });
   }
 
   // Enforce the team cap before taking payment.
@@ -143,6 +151,13 @@ export async function POST(req: NextRequest) {
       : { customer_email: coachEmail }),
     payment_intent_data: {
       setup_future_usage: "off_session",
+      // Destination charge: the entry fee lands in the tournament
+      // organizer's connected account, minus the flat platform fee which
+      // stays with BASE.
+      transfer_data: { destination: payout.destination },
+      on_behalf_of: payout.destination,
+      application_fee_amount: feeFor(chargeCents),
+      metadata: { registrationId: registration.id },
     },
     line_items: [
       {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
+import { resolveTournamentPayout, feeFor } from "@/lib/connect";
 import { resolveDiscount } from "@/lib/pricing";
 
 const planSchema = z.object({
@@ -51,6 +52,11 @@ export async function POST(req: NextRequest) {
   const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
   if (!tournament) {
     return NextResponse.json({ error: "Tournament not found" }, { status: 404 });
+  }
+
+  const payout = await resolveTournamentPayout(tournamentId);
+  if (!payout.ok) {
+    return NextResponse.json({ error: payout.reason }, { status: 409 });
   }
 
   const registeredCount = await prisma.registration.count({
@@ -155,7 +161,20 @@ export async function POST(req: NextRequest) {
     mode: "payment",
     payment_method_types: ["card"],
     customer: stripeCustomerId,
-    payment_intent_data: { setup_future_usage: "off_session" },
+    payment_intent_data: {
+      setup_future_usage: "off_session",
+      // Route this installment to the organizer's connected account. The
+      // whole flat platform fee is taken here on the first installment;
+      // later installments (charged off-session by the cron) carry no
+      // application fee -- see /lib/installments.ts.
+      transfer_data: { destination: payout.destination },
+      on_behalf_of: payout.destination,
+      application_fee_amount: feeFor(firstInstallment.amountCents),
+      metadata: {
+        registrationId: registration.id,
+        installmentId: firstInstallment.id,
+      },
+    },
     line_items: [
       {
         price_data: {

@@ -1,5 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getAdminSession, isLeadAdmin, canManageTournament } from "@/lib/adminAuth";
 import AdminTournamentTabs from "./AdminTournamentTabs";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +12,17 @@ export default async function AdminTournamentPage({
 }) {
   const { id } = await params;
 
+  const session = await getAdminSession();
+  if (!session) redirect(`/login?next=/admin/tournaments/${id}`);
+  const lead = isLeadAdmin(session);
+
+  // A regular admin can't even see a tournament they don't own.
+  if (!(await canManageTournament(id, session))) notFound();
+
   const tournament = await prisma.tournament.findUnique({
     where: { id },
     include: {
+      owner: { select: { id: true, name: true, stripeConnectChargesEnabled: true } },
       divisions: {
         include: {
           registrations: true,
@@ -24,6 +33,14 @@ export default async function AdminTournamentPage({
   });
 
   if (!tournament) notFound();
+
+  const admins = lead
+    ? await prisma.user.findMany({
+        where: { role: "ADMIN" },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, email: true },
+      })
+    : [];
 
   const divisions = tournament.divisions.map((division) => {
     const poolGames = division.games.filter((g) => g.stage === "POOL");
@@ -52,6 +69,13 @@ export default async function AdminTournamentPage({
       tournamentId={tournament.id}
       tournamentName={tournament.name}
       flyerUrl={tournament.flyerUrl}
+      isLead={lead}
+      owner={{
+        id: tournament.owner?.id ?? null,
+        name: tournament.owner?.name ?? null,
+        acceptsPayments: Boolean(tournament.owner?.stripeConnectChargesEnabled),
+      }}
+      admins={admins}
       editFormInitial={{
         name: tournament.name,
         sport: tournament.sport,

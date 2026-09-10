@@ -15,10 +15,19 @@ export default async function TournamentDetailPage({
   const { id } = await params;
   const tournament = await prisma.tournament.findUnique({
     where: { id },
-    include: { venue: true, divisions: true, registrations: true },
+    include: {
+      venue: true,
+      divisions: true,
+      registrations: true,
+      owner: { select: { stripeConnectChargesEnabled: true } },
+    },
   });
 
   if (!tournament) notFound();
+
+  // Registration is only possible once the organizer can actually take
+  // (and be paid) the money.
+  const acceptingPayments = Boolean(tournament.owner?.stripeConnectChargesEnabled);
 
   const slotsTaken = tournament.registrations.filter((r) =>
     ["PAID", "PENDING"].includes(r.status)
@@ -186,7 +195,10 @@ export default async function TournamentDetailPage({
           </p>
 
           <div className="mt-6">
-            {slotsLeft > 0 && tournament.divisions.length > 0 && !registrationNotYetOpen ? (
+            {slotsLeft > 0 &&
+            tournament.divisions.length > 0 &&
+            !registrationNotYetOpen &&
+            acceptingPayments ? (
               <RegisterForm
                 tournamentId={tournament.id}
                 tournamentName={tournament.name}
@@ -201,7 +213,7 @@ export default async function TournamentDetailPage({
                 disabled
                 className="w-full cursor-not-allowed rounded-sm bg-steel/30 px-6 py-3 font-semibold text-ink/50"
               >
-                {registrationNotYetOpen
+                {registrationNotYetOpen || !acceptingPayments
                   ? "Registration opens soon"
                   : "Registration unavailable"}
               </button>

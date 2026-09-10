@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -275,6 +276,20 @@ async function main() {
   let tournamentCount = 0;
   let divisionCount = 0;
 
+  // A lead admin to own the seeded tournaments so a fresh dev database is
+  // immediately usable. (Production admins are created separately.)
+  const seedAdmin = await prisma.user.upsert({
+    where: { email: "admin@basetournament.com" },
+    update: { role: "ADMIN", isSuperAdmin: true },
+    create: {
+      email: "admin@basetournament.com",
+      name: "Seed Admin",
+      passwordHash: await bcrypt.hash("password123", 10),
+      role: "ADMIN",
+      isSuperAdmin: true,
+    },
+  });
+
   for (const t of tournaments) {
     const created = await prisma.tournament.create({
       data: {
@@ -286,6 +301,7 @@ async function main() {
         entryFeeCents: t.entryFeeCents,
         teamCap: t.teamCap,
         description: t.description || null,
+        ownerId: seedAdmin.id,
       },
     });
     tournamentCount++;

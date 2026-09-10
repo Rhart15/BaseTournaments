@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminAuthed } from "@/lib/adminAuth";
+import { guardDivision } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 const POOL_LABELS = "ABCDEFGHIJ".split("");
@@ -13,11 +13,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAdminAuthed())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { id: divisionId } = await params;
+
+  const g = await guardDivision(divisionId);
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
   const body = await req.json().catch(() => ({}));
   const poolCount = Math.max(1, Math.min(10, Number(body.poolCount) || 1));
 

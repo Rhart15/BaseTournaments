@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
+import { resolveTournamentPayout, PLATFORM_FEE_CENTS } from "@/lib/connect";
 import { resolveDiscount, recordDiscountCodeUse } from "@/lib/pricing";
 
 const cartSchema = z.object({
@@ -60,6 +61,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // A single Stripe checkout is one destination charge, so every event in
+  // the cart must be run by the same organizer. Resolve the payout target
+  // once and require it to be the same for all of them.
+  let destination: string | null = null;
+  for (const tId of tournamentIds) {
+    const payout = await resolveTournamentPayout(tId);
+    if (!payout.ok) {
+      const name = tournamentById.get(tId)?.name ?? "An event in your cart";
+      return NextResponse.json({ error: `${name}: ${payout.reason}` }, { status: 409 });
+    }
+    if (destination && destination !== payout.destination) {
+      return NextResponse.json(
+        {
+          error:
+            "Your cart has events run by different organizers. Please check out one organizer's events at a time.",
+        },
+        { status: 409 }
+      );
+    }
+    destination = payout.destination;
+  }
+
   const authSession = await auth();
   let ownTeamId: string | null = null;
   let stripeCustomerId: string | undefined;
@@ -100,6 +123,7 @@ export async function POST(req: NextRequest) {
   }[] = [];
   const registrationIds: string[] = [];
   let discountCodeIdUsed: string | null = null;
+  let totalChargeCents = 0;
 
   for (const item of items) {
     const tournament = tournamentById.get(item.tournamentId)!;
@@ -133,6 +157,7 @@ export async function POST(req: NextRequest) {
     registrationIds.push(registration.id);
 
     if (chargeCents > 0) {
+      totalChargeCents += chargeCents;
       lineItems.push({
         price_data: {
           currency: "usd",
@@ -157,13 +182,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ free: true, orderGroupId });
   }
 
+  // One flat platform fee per team actually being charged, capped so it
+  // can never exceed the order total.
+  const applicationFeeCents = Math.min(
+    PLATFORM_FEE_CENTS * lineItems.length,
+    totalChargeCents
+  );
+
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card", "us_bank_account"],
     ...(stripeCustomerId
       ? { customer: stripeCustomerId }
       : { customer_email: coachEmail }),
-    payment_intent_data: { setup_future_usage: "off_session" },
+    payment_intent_data: {
+      setup_future_usage: "off_session",
+      transfer_data: { destination: destination! },
+      on_behalf_of: destination!,
+      application_fee_amount: applicationFeeCents,
+      metadata: { orderGroupId },
+    },
     line_items: lineItems,
     metadata: { orderGroupId },
     success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/register/success?order=${orderGroupId}`,

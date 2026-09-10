@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminAuthed } from "@/lib/adminAuth";
+import { guardGame } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 import { propagateByeAdvancement } from "@/lib/brackets";
 
@@ -13,10 +13,6 @@ const isRealFinal = (g: { status: string; homeTeamId: string | null; awayTeamId:
 // Blocked once either game has already been played, since that's a real
 // recorded result, not a seeding placeholder anymore.
 export async function POST(req: NextRequest) {
-  if (!(await isAdminAuthed())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = await req.json();
   const { gameAId, gameASide, gameBId, gameBSide } = body as {
     gameAId: string;
@@ -28,6 +24,11 @@ export async function POST(req: NextRequest) {
   if (!gameAId || !gameBId || !gameASide || !gameBSide) {
     return NextResponse.json({ error: "Missing slot info" }, { status: 400 });
   }
+
+  // Both games are in the same bracket/division, so an ownership check on
+  // one covers the operation.
+  const g = await guardGame(gameAId);
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
 
   const [gameA, gameB] = await Promise.all([
     prisma.game.findUnique({ where: { id: gameAId } }),

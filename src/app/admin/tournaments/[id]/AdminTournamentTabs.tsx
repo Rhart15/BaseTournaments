@@ -12,6 +12,7 @@ import PoolScheduleSetup from "./PoolScheduleSetup";
 import BracketEditor from "./BracketEditor";
 import BracketFormatSettings from "./BracketFormatSettings";
 import ResetBracketButton from "@/components/admin/ResetBracketButton";
+import OrganizerControl from "./OrganizerControl";
 
 type GameWithTeams = Game & {
   homeTeam: Registration | null;
@@ -38,6 +39,9 @@ export default function AdminTournamentTabs({
   tournamentId,
   tournamentName,
   flyerUrl,
+  isLead,
+  owner,
+  admins,
   editFormInitial,
   editFormDivisions,
   divisions,
@@ -45,6 +49,9 @@ export default function AdminTournamentTabs({
   tournamentId: string;
   tournamentName: string;
   flyerUrl: string | null;
+  isLead: boolean;
+  owner: { id: string | null; name: string | null; acceptsPayments: boolean };
+  admins: { id: string; name: string; email: string }[];
   editFormInitial: {
     name: string;
     sport: string;
@@ -69,13 +76,28 @@ export default function AdminTournamentTabs({
         </Link>
         <div className="flex items-center justify-between">
           <h1 className="display mt-1 text-2xl">{tournamentName}</h1>
-          <Link
-            href={`/admin/tournaments/${tournamentId}/rosters`}
-            className="text-sm text-white/70 underline hover:text-white"
-          >
-            Roster approvals
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/admin/tournaments/${tournamentId}/registrations`}
+              className="text-sm text-white/70 underline hover:text-white"
+            >
+              Registrations &amp; refunds
+            </Link>
+            <Link
+              href={`/admin/tournaments/${tournamentId}/rosters`}
+              className="text-sm text-white/70 underline hover:text-white"
+            >
+              Roster approvals
+            </Link>
+          </div>
         </div>
+        {!owner.acceptsPayments && (
+          <p className="mt-2 rounded-sm bg-gold/20 px-3 py-1 text-xs font-semibold text-white">
+            {owner.name
+              ? `${owner.name} hasn't finished Stripe setup — this tournament can't take registration payments yet.`
+              : "No organizer assigned — this tournament can't take registration payments yet."}
+          </p>
+        )}
       </header>
 
       <div className="mx-auto max-w-6xl px-6 py-8">
@@ -98,6 +120,13 @@ export default function AdminTournamentTabs({
         <div className="mt-6">
           {activeTab === "Info" && (
             <div className="space-y-6">
+              {isLead && (
+                <OrganizerControl
+                  tournamentId={tournamentId}
+                  currentOwnerId={owner.id}
+                  admins={admins}
+                />
+              )}
               <div className="rounded-sm border border-steel/20 bg-white p-6">
                 <FlyerUpload tournamentId={tournamentId} initialFlyerUrl={flyerUrl} />
               </div>

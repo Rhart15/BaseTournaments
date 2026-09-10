@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { isAdminAuthed } from "@/lib/adminAuth";
+import { guardGame } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 const scheduleSchema = z.object({
@@ -15,11 +15,11 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAdminAuthed())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { id } = await params;
+
+  const g = await guardGame(id);
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
+
   const body = await req.json();
   const parsed = scheduleSchema.safeParse(body);
 

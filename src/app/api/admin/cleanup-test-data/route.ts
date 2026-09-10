@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthed } from "@/lib/adminAuth";
+import { guardLeadAdmin } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 // One-click cleanup for everything created while testing the bracket
@@ -12,9 +12,8 @@ import { prisma } from "@/lib/db";
 const TEST_DIVISION_PATTERNS = ["test", "dblelim", "playin"];
 
 export async function POST() {
-  if (!(await isAdminAuthed())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const g = await guardLeadAdmin();
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
 
   const testDivisions: { id: string; label: string }[] = await prisma.division.findMany({
     where: {

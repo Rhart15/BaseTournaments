@@ -36,99 +36,108 @@ enum GameStatus {
 }
 
 model Tournament {
-  id          String   @id @default(cuid())
-  name        String
-  sport       Sport
-  startDate   DateTime
-  endDate     DateTime
-  venueId     String?
-  venue       Venue?   @relation(fields: [venueId], references: [id])
-  city        String
-  state       String   @default("AR")
-  description String?
-  flyerUrl    String?
-  entryFeeCents Int
-  teamCap     Int
+  id                   String    @id @default(cuid())
+  name                 String
+  sport                Sport
+  startDate            DateTime
+  endDate              DateTime
+  venueId              String?
+  venue                Venue?    @relation(fields: [venueId], references: [id])
+  city                 String
+  state                String    @default("AR")
+  description          String?
+  flyerUrl             String?
+  entryFeeCents        Int
+  teamCap              Int
   registrationOpensAt  DateTime?
   registrationClosesAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // The admin who runs this event. Registration payments route to this
+  // admin's connected Stripe account (see User.stripeConnectAccountId),
+  // minus the flat platform fee. Set automatically to the creating admin;
+  // only a lead admin (User.isSuperAdmin) can reassign it. Nullable only
+  // so the column can be added ahead of the one-time backfill -- every
+  // real tournament has an owner.
+  ownerId String?
+  owner   User?   @relation("TournamentOwner", fields: [ownerId], references: [id])
 
   divisions     Division[]
   registrations Registration[]
 }
 
 model Venue {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   name        String
   address     String
   city        String
-  state       String   @default("AR")
-  fieldCount  Int      @default(1)
+  state       String       @default("AR")
+  fieldCount  Int          @default(1)
   tournaments Tournament[]
 }
 
 model Division {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
-  label        String   // e.g. "10U", "12U Gold"
+  label        String // e.g. "10U", "12U Gold"
   ageLimit     Int?
-  teamCap      Int?     // optional per-division cap; null means uncapped
+  teamCap      Int? // optional per-division cap; null means uncapped
 
-  pools         Pool[]
-  registrations Registration[]
-  games         Game[]
-  resultsFinalized Boolean @default(false)
-  bracketPublished Boolean @default(false)
+  pools            Pool[]
+  registrations    Registration[]
+  games            Game[]
+  resultsFinalized Boolean        @default(false)
+  bracketPublished Boolean        @default(false)
 
   // Set before bracket generation -- usePoolPlay=false skips the pool
   // stage entirely and seeds straight from registration order.
   // gameGuarantee (3 or 4) labels the format; the backside/loser-bracket
   // mechanics that actually enforce it are a separate, not-yet-built
   // feature (see /lib/brackets.ts).
-  usePoolPlay      Boolean @default(true)
-  gameGuarantee    Int     @default(3)
+  usePoolPlay   Boolean @default(true)
+  gameGuarantee Int     @default(3)
 }
 
 model Pool {
   id         String   @id @default(cuid())
   divisionId String
   division   Division @relation(fields: [divisionId], references: [id])
-  label      String   // "Pool A"
+  label      String // "Pool A"
 
   teams Registration[] @relation("PoolAssignment")
   games Game[]
 }
 
 model Registration {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   tournamentId String
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
   divisionId   String
-  division     Division @relation(fields: [divisionId], references: [id])
+  division     Division   @relation(fields: [divisionId], references: [id])
   poolId       String?
-  pool         Pool?    @relation("PoolAssignment", fields: [poolId], references: [id])
+  pool         Pool?      @relation("PoolAssignment", fields: [poolId], references: [id])
 
-  teamName     String
-  coachName    String
-  coachEmail   String
-  coachPhone   String
+  teamName   String
+  coachName  String
+  coachEmail String
+  coachPhone String
 
-  status        RegistrationStatus @default(PENDING)
+  status          RegistrationStatus @default(PENDING)
   stripeSessionId String?
-  paidAt        DateTime?
+  paidAt          DateTime?
 
-  seed          Int?      // seed going into the bracket after pool play
-  poolWins      Int       @default(0)
-  poolLosses    Int       @default(0)
-  runsFor       Int       @default(0)
-  runsAgainst   Int       @default(0)
+  seed        Int? // seed going into the bracket after pool play
+  poolWins    Int  @default(0)
+  poolLosses  Int  @default(0)
+  runsFor     Int  @default(0)
+  runsAgainst Int  @default(0)
 
-  bracketWins   Int       @default(0)
-  bracketLosses Int       @default(0)
-  finalPlacement String?  // e.g. "Champion", "Runner-up", "Lost in Semifinals"
-  isVipComp     Boolean   @default(false) // paid via VIP access code, not a real card charge
+  bracketWins    Int     @default(0)
+  bracketLosses  Int     @default(0)
+  finalPlacement String? // e.g. "Champion", "Runner-up", "Lost in Semifinals"
+  isVipComp      Boolean @default(false) // paid via VIP access code, not a real card charge
 
   // Roster approval -- a coach submits the roster once it's final for this
   // event, an admin reviews and approves/rejects it. Separate from just
@@ -151,15 +160,23 @@ model Registration {
 
   installments PaymentInstallment[]
 
-  createdAt     DateTime  @default(now())
+  // Running total refunded back to the payer across one or more Refund
+  // rows. status flips to REFUNDED once this covers everything that was
+  // actually charged; a smaller value means a partial refund was issued
+  // and the registration still stands.
+  refundedAmountCents Int       @default(0)
+  fullyRefundedAt     DateTime?
+  refunds             Refund[]
 
-  homeGames Game[] @relation("HomeTeam")
-  awayGames Game[] @relation("AwayTeam")
+  createdAt DateTime @default(now())
+
+  homeGames     Game[]              @relation("HomeTeam")
+  awayGames     Game[]              @relation("AwayTeam")
   rosterPlayers RosterPlayer[]
   guestInvites  GuestPlayerInvite[]
 
-  teamId       String?
-  team         Team?    @relation(fields: [teamId], references: [id])
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
 }
 
 // A registration paid via a payment plan gets split into these instead of
@@ -168,17 +185,52 @@ model Registration {
 // a scheduled job (see /api/cron/charge-installments), using the card
 // saved to the coach's Stripe Customer at checkout time.
 model PaymentInstallment {
-  id             String            @id @default(cuid())
+  id             String       @id @default(cuid())
   registrationId String
-  registration   Registration      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
-  dueDate      DateTime
-  amountCents  Int
-  status       InstallmentStatus  @default(PENDING)
-  paidAt       DateTime?
-  attemptCount Int                @default(0)
-  lastError    String?
+  dueDate               DateTime
+  amountCents           Int
+  status                InstallmentStatus @default(PENDING)
+  paidAt                DateTime?
+  attemptCount          Int               @default(0)
+  lastError             String?
   stripePaymentIntentId String?
+
+  createdAt DateTime @default(now())
+}
+
+// One refund issued against a registration by an admin. A registration
+// can have several (repeated partial refunds); the sum of amountCents is
+// mirrored onto Registration.refundedAmountCents. For a payment-plan
+// registration a single "full refund" Refund row covers every underlying
+// installment charge, so stripeRefundIds holds more than one id.
+model Refund {
+  id             String       @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  // Returned to the payer.
+  amountCents              Int
+  // How that amount was funded: pulled back from the tournament owner's
+  // connected account, vs. absorbed by the platform (owner already paid
+  // out with no balance left to claw back), vs. the platform fee handed
+  // back. full refund => platformFeeRefundedCents = the $15; partial
+  // refund => 0 (the fee is non-refundable on partials).
+  transferReversedCents    Int @default(0)
+  platformAbsorbedCents    Int @default(0)
+  platformFeeRefundedCents Int @default(0)
+
+  isFull          Boolean  @default(false)
+  reason          String?
+  stripeRefundIds String[] // Stripe refund ids created for this action
+  note            String? // free-text failures / partial-completion detail
+
+  // The admin who issued it. Null when reconciled from a refund made
+  // directly in the Stripe dashboard (no app user).
+  createdByUserId String?
+  createdBy       User?   @relation("RefundIssuedBy", fields: [createdByUserId], references: [id])
+  source          String  @default("admin") // "admin" | "stripe_dashboard"
 
   createdAt DateTime @default(now())
 }
@@ -192,9 +244,9 @@ model RosterPlayer {
   lastName     String
   jerseyNumber String?
   position     String?
-  isGuest      Boolean  @default(false) // added via a one-off guest-player invite link
+  isGuest      Boolean @default(false) // added via a one-off guest-player invite link
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 // A shareable, single-use-by-default link a coach (or admin) generates so
@@ -211,50 +263,50 @@ model GuestPlayerInvite {
 }
 
 model Game {
-  id           String   @id @default(cuid())
-  divisionId   String
-  division     Division @relation(fields: [divisionId], references: [id])
-  poolId       String?
-  pool         Pool?    @relation(fields: [poolId], references: [id])
+  id         String   @id @default(cuid())
+  divisionId String
+  division   Division @relation(fields: [divisionId], references: [id])
+  poolId     String?
+  pool       Pool?    @relation(fields: [poolId], references: [id])
 
-  stage        GameStage
-  round        String?   // e.g. "Winners R1", "Championship" for bracket stage
-  bracketSlot  Int?      // position in the bracket for advancement logic
+  stage       GameStage
+  round       String? // e.g. "Winners R1", "Championship" for bracket stage
+  bracketSlot Int? // position in the bracket for advancement logic
 
-  homeTeamId   String?
-  homeTeam     Registration? @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeamId   String?
-  awayTeam     Registration? @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  homeTeamId String?
+  homeTeam   Registration? @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId String?
+  awayTeam   Registration? @relation("AwayTeam", fields: [awayTeamId], references: [id])
 
-  fieldName    String?
-  startTime    DateTime?
+  fieldName String?
+  startTime DateTime?
 
-  homeScore    Int?
-  awayScore    Int?
-  status       GameStatus @default(SCHEDULED)
+  homeScore Int?
+  awayScore Int?
+  status    GameStatus @default(SCHEDULED)
 
-  advancesToGameId String?  // winner of this game feeds into this next game
+  advancesToGameId      String? // winner of this game feeds into this next game
   loserAdvancesToGameId String? // loser feeds into this losers-bracket game (double elimination only)
 
-  updatedAt    DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 // --- Director / sanctioning-body layer -------------------------------
 
 model Director {
-  id            String   @id @default(cuid())
-  name          String
-  email         String   @unique
-  phone         String?
-  region        String   // e.g. "Central Arkansas", "NW Arkansas"
-  bio           String?
-  photoUrl      String?
-  sanctionFeePaid Boolean @default(false)
+  id                    String           @id @default(cuid())
+  name                  String
+  email                 String           @unique
+  phone                 String?
+  region                String // e.g. "Central Arkansas", "NW Arkansas"
+  bio                   String?
+  photoUrl              String?
+  sanctionFeePaid       Boolean          @default(false)
   backgroundCheckStatus ComplianceStatus @default(PENDING)
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  active                Boolean          @default(true)
+  createdAt             DateTime         @default(now())
 
-  teams         Team[]
+  teams Team[]
 }
 
 enum ComplianceStatus {
@@ -280,6 +332,8 @@ enum InstallmentStatus {
   PENDING
   PAID
   FAILED
+  CANCELLED // a scheduled installment voided because the registration was refunded
+  REFUNDED // a paid installment that was refunded back to the payer
 }
 
 // --- User accounts (coaches and parents) -------------------------------
@@ -291,18 +345,40 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  phone        String?
-  role         UserRole @default(COACH)
-  isSuperAdmin Boolean  @default(false)
-  stripeCustomerId String? // lets Stripe Checkout offer their saved card on future registrations
-  createdAt    DateTime @default(now())
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  passwordHash       String
+  name               String
+  phone              String?
+  role               UserRole @default(COACH)
+  // A lead ("head") admin: can create/edit/remove ANY tournament, manage
+  // other admin accounts, and reassign tournament ownership. A plain
+  // role=ADMIN can only touch tournaments they own.
+  isSuperAdmin       Boolean  @default(false)
+  // Set when an account is created with a generated temporary password
+  // (lead admin creating another admin). Cleared once they change it.
+  mustChangePassword Boolean  @default(false)
+  stripeCustomerId   String? // lets Stripe Checkout offer their saved card on future registrations
+
+  // --- Stripe Connect (Express) -------------------------------------
+  // Each admin gets their own connected account; registration payments
+  // for the tournaments they own are routed there as destination charges.
+  // The *_enabled / detailsSubmitted flags are a cache of the Stripe
+  // account state, refreshed on the account.updated webhook and on
+  // demand -- charges are only routed when stripeConnectChargesEnabled.
+  stripeConnectAccountId        String?   @unique
+  stripeConnectChargesEnabled   Boolean   @default(false)
+  stripeConnectPayoutsEnabled   Boolean   @default(false)
+  stripeConnectDetailsSubmitted Boolean   @default(false)
+  stripeConnectRefreshedAt      DateTime?
+
+  createdAt DateTime @default(now())
 
   teams    Team[]
   athletes FamilyAthlete[]
+
+  ownedTournaments Tournament[] @relation("TournamentOwner")
+  refundsIssued    Refund[]     @relation("RefundIssuedBy")
 }
 
 model FamilyAthlete {
@@ -318,26 +394,26 @@ model FamilyAthlete {
 // --- Persistent team / roster layer -----------------------------------
 
 model Team {
-  id            String   @id @default(cuid())
-  name          String
-  organization  String?
-  directorId    String?
-  director      Director? @relation(fields: [directorId], references: [id])
-  ageGroup      String
-  homeCity      String?
-  homeState     String   @default("AR")
-  logoUrl       String?
+  id           String    @id @default(cuid())
+  name         String
+  organization String?
+  directorId   String?
+  director     Director? @relation(fields: [directorId], references: [id])
+  ageGroup     String
+  homeCity     String?
+  homeState    String    @default("AR")
+  logoUrl      String?
 
-  coachUserId   String?
-  coachUser     User?    @relation(fields: [coachUserId], references: [id])
+  coachUserId String?
+  coachUser   User?   @relation(fields: [coachUserId], references: [id])
 
-  insuranceStatus ComplianceStatus @default(PENDING)
-  insuranceProvider String? // e.g. "Chappell Insurance"
+  insuranceStatus    ComplianceStatus @default(PENDING)
+  insuranceProvider  String? // e.g. "Chappell Insurance"
   insuranceExpiresAt DateTime?
-  insuranceFileUrl  String?
-  insuranceFileName String?
+  insuranceFileUrl   String?
+  insuranceFileName  String?
 
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
 
   players       Player[]
   staff         TeamStaff[]
@@ -346,27 +422,27 @@ model Team {
 }
 
 model TeamStaff {
-  id       String  @id @default(cuid())
-  teamId   String
-  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
-  name     String
-  role     String  // e.g. "Head Coach", "Assistant Coach"
-  phone    String?
-  email    String?
+  name             String
+  role             String // e.g. "Head Coach", "Assistant Coach"
+  phone            String?
+  email            String?
   isHousingContact Boolean @default(false)
 
-  backgroundCheckStatus ComplianceStatus @default(PENDING)
-  backgroundCheckFileUrl String?
+  backgroundCheckStatus   ComplianceStatus @default(PENDING)
+  backgroundCheckFileUrl  String?
   backgroundCheckFileName String?
 
   createdAt DateTime @default(now())
 }
 
 model TeamDocument {
-  id       String  @id @default(cuid())
-  teamId   String
-  team     Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   label    String
   fileUrl  String
@@ -376,20 +452,20 @@ model TeamDocument {
 }
 
 model Player {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   teamId       String
-  team         Team     @relation(fields: [teamId], references: [id])
+  team         Team    @relation(fields: [teamId], references: [id])
   firstName    String
   lastName     String
   jerseyNumber String?
   position     String?
   birthYear    Int?
 
-  backgroundCheckStatus ComplianceStatus @default(PENDING)
-  backgroundCheckFileUrl String?
+  backgroundCheckStatus   ComplianceStatus @default(PENDING)
+  backgroundCheckFileUrl  String?
   backgroundCheckFileName String?
 
-  createdAt    DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 // --- Pricing -------------------------------------------------------------
@@ -398,8 +474,8 @@ model DiscountCode {
   id        String       @id @default(cuid())
   code      String       @unique // entered by the customer, case-insensitive match handled in code
   type      DiscountType
-  value     Int          // PERCENT: whole-number percent (10 = 10%). FLAT: cents off.
-  maxUses   Int?         // null = unlimited
+  value     Int // PERCENT: whole-number percent (10 = 10%). FLAT: cents off.
+  maxUses   Int? // null = unlimited
   usedCount Int          @default(0)
   active    Boolean      @default(true)
   expiresAt DateTime?
@@ -424,23 +500,23 @@ model SiteDocument {
 // --- Content / marketing layer -----------------------------------------
 
 model Post {
-  id          String   @id @default(cuid())
-  title       String
-  slug        String   @unique
-  excerpt     String?
-  body        String
+  id            String    @id @default(cuid())
+  title         String
+  slug          String    @unique
+  excerpt       String?
+  body          String
   coverImageUrl String?
-  publishedAt DateTime?
-  createdAt   DateTime @default(now())
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
 }
 
 model AgeChartEntry {
-  id        String @id @default(cuid())
-  division  String  // e.g. "10U"
+  id             String @id @default(cuid())
+  division       String // e.g. "10U"
   birthYearStart Int
   birthYearEnd   Int
-  sport     Sport
-  sortOrder Int    @default(0)
+  sport          Sport
+  sortOrder      Int    @default(0)
 }
 
 model ContactSubmission {

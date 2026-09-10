@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
-import { isAdminAuthed } from "@/lib/adminAuth";
+import { guardTournament } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
@@ -10,11 +10,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAdminAuthed())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { id } = await params;
+
+  const g = await guardTournament(id);
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
 
   const tournament = await prisma.tournament.findUnique({ where: { id } });
   if (!tournament) {
@@ -67,11 +66,10 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!(await isAdminAuthed())) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { id } = await params;
+
+  const g = await guardTournament(id);
+  if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
 
   await prisma.tournament.update({
     where: { id },

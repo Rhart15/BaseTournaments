@@ -1,23 +1,42 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/db";
-import { auth } from "@/auth";
+import { getAdminSession, isLeadAdmin, tournamentScopeWhere } from "@/lib/adminAuth";
 import MarkHandledButton from "@/components/admin/MarkHandledButton";
 import DirectorRow from "@/components/admin/DirectorRow";
 import AddDirectorForm from "@/components/admin/AddDirectorForm";
 import TeamRow from "@/components/admin/TeamRow";
 import AddTeamForm from "@/components/admin/AddTeamForm";
 import CleanupTestDataButton from "@/components/admin/CleanupTestDataButton";
+import PayoutStatusBanner from "@/components/admin/PayoutStatusBanner";
 
 export const dynamic = "force-dynamic";
 
-// Protected by middleware.ts: requires either the legacy shared admin
-// password or a logged-in user with role ADMIN.
+// Protected by middleware.ts (requires a logged-in ADMIN). A regular
+// admin only sees the tournaments they own; a lead admin sees them all.
 export default async function AdminPage() {
-  const session = await auth();
+  const session = await getAdminSession();
+  if (!session) redirect("/login?next=/admin");
+  const lead = isLeadAdmin(session);
+
+  const me = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      stripeConnectAccountId: true,
+      stripeConnectChargesEnabled: true,
+      stripeConnectPayoutsEnabled: true,
+      stripeConnectDetailsSubmitted: true,
+    },
+  });
+
   const [tournaments, directors, teams, unhandledContacts] = await Promise.all([
     prisma.tournament.findMany({
+      where: tournamentScopeWhere(session),
       orderBy: { startDate: "asc" },
-      include: { registrations: true },
+      include: {
+        registrations: true,
+        owner: { select: { name: true, stripeConnectChargesEnabled: true } },
+      },
     }),
     prisma.director.findMany({ orderBy: { name: "asc" } }),
     prisma.team.findMany({
@@ -49,7 +68,13 @@ export default async function AdminPage() {
           </Link>
         </div>
         <div className="flex items-center gap-4">
-          {session?.user.isSuperAdmin && (
+          <Link
+            href="/admin/settings"
+            className="text-sm text-white/70 underline hover:text-white"
+          >
+            Payouts
+          </Link>
+          {lead && (
             <Link
               href="/admin/admins"
               className="text-sm text-white/70 underline hover:text-white"
@@ -75,11 +100,17 @@ export default async function AdminPage() {
               {unhandledContacts.length === 1 ? "" : "s"}
             </span>
           )}
-          <CleanupTestDataButton />
+          {lead && <CleanupTestDataButton />}
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl space-y-14 px-6 py-10">
+        <PayoutStatusBanner
+          started={Boolean(me?.stripeConnectAccountId)}
+          chargesEnabled={Boolean(me?.stripeConnectChargesEnabled)}
+          payoutsEnabled={Boolean(me?.stripeConnectPayoutsEnabled)}
+        />
+
         {/* Tournaments */}
         <section>
           <div className="flex items-center justify-between">
@@ -96,6 +127,7 @@ export default async function AdminPage() {
             <thead>
               <tr className="border-b border-steel/40 text-left text-ink/50">
                 <th className="py-2">Tournament</th>
+                {lead && <th>Organizer</th>}
                 <th>Dates</th>
                 <th>Teams registered</th>
                 <th>Paid</th>
@@ -105,9 +137,20 @@ export default async function AdminPage() {
             <tbody>
               {tournaments.map((t) => {
                 const paid = t.registrations.filter((r) => r.status === "PAID").length;
+                const acceptsPayments = Boolean(t.owner?.stripeConnectChargesEnabled);
                 return (
                   <tr key={t.id} className="border-b border-steel/15">
-                    <td className="py-3">{t.name}</td>
+                    <td className="py-3">
+                      {t.name}
+                      {!acceptsPayments && (
+                        <span className="ml-2 rounded-sm bg-gold/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-ink/70">
+                          Not accepting payments
+                        </span>
+                      )}
+                    </td>
+                    {lead && (
+                      <td className="text-ink/60">{t.owner?.name ?? "— unassigned —"}</td>
+                    )}
                     <td>
                       {t.startDate.toLocaleDateString("en-US", {
                         month: "short",
@@ -131,7 +174,7 @@ export default async function AdminPage() {
               })}
               {tournaments.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-ink/50">
+                  <td colSpan={lead ? 6 : 5} className="py-6 text-center text-ink/50">
                     No tournaments yet.
                   </td>
                 </tr>

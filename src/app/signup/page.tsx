@@ -58,7 +58,7 @@ export default function SignupPage() {
       <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-6 py-16">
         <h1 className="display text-3xl">Create your account</h1>
         <p className="mt-1 text-sm text-ink/60">
-          Coaches manage teams and rosters. Parents track their athlete's
+          Coaches manage teams and rosters. Parents track their athlete&apos;s
           registrations.
         </p>
 

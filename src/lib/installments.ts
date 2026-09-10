@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
+import { resolveTournamentPayout } from "@/lib/connect";
 import { markInstallmentPaid } from "@/lib/pricing";
 
 export async function attemptInstallmentCharge(installmentId: string) {
@@ -11,7 +12,32 @@ export async function attemptInstallmentCharge(installmentId: string) {
       },
     },
   });
-  if (!installment || installment.status === "PAID") return;
+  // PENDING (scheduled) and FAILED (retryable) can be charged; PAID,
+  // CANCELLED and REFUNDED are terminal.
+  if (
+    !installment ||
+    installment.status === "PAID" ||
+    installment.status === "CANCELLED" ||
+    installment.status === "REFUNDED"
+  ) {
+    return;
+  }
+
+  // Route this installment to the tournament organizer's connected
+  // account, same as the first installment did. The flat platform fee was
+  // already taken on installment 1, so there's no application fee here.
+  const payout = await resolveTournamentPayout(installment.registration.tournamentId);
+  if (!payout.ok) {
+    await prisma.paymentInstallment.update({
+      where: { id: installmentId },
+      data: {
+        status: "FAILED",
+        attemptCount: { increment: 1 },
+        lastError: `Can't route the payment: ${payout.reason}`,
+      },
+    });
+    return;
+  }
 
   const stripeCustomerId = installment.registration.team?.coachUser?.stripeCustomerId;
   if (!stripeCustomerId) {
@@ -37,15 +63,20 @@ export async function attemptInstallmentCharge(installmentId: string) {
       throw new Error("No saved card found for this customer.");
     }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: installment.amountCents,
-      currency: "usd",
-      customer: stripeCustomerId,
-      payment_method: paymentMethodId,
-      off_session: true,
-      confirm: true,
-      metadata: { installmentId: installment.id },
-    });
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: installment.amountCents,
+        currency: "usd",
+        customer: stripeCustomerId,
+        payment_method: paymentMethodId,
+        off_session: true,
+        confirm: true,
+        transfer_data: { destination: payout.destination },
+        on_behalf_of: payout.destination,
+        metadata: { installmentId: installment.id },
+      },
+      { idempotencyKey: `installment-${installment.id}-${installment.attemptCount}` }
+    );
 
     if (paymentIntent.status === "succeeded") {
       await prisma.paymentInstallment.update({
