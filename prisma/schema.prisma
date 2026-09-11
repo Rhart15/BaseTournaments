@@ -379,6 +379,9 @@ model User {
 
   ownedTournaments Tournament[] @relation("TournamentOwner")
   refundsIssued    Refund[]     @relation("RefundIssuedBy")
+
+  teamLinks           TeamParent[]
+  mobileRefreshTokens MobileRefreshToken[]
 }
 
 model FamilyAthlete {
@@ -419,6 +422,7 @@ model Team {
   staff         TeamStaff[]
   documents     TeamDocument[]
   registrations Registration[]
+  parents       TeamParent[]
 }
 
 model TeamStaff {
@@ -449,6 +453,47 @@ model TeamDocument {
   fileName String
 
   createdAt DateTime @default(now())
+}
+
+// A parent/family account (User.role === PARENT) linked to a Team so they
+// can view its schedule, standings, and registration/payment status --
+// read-only, team-wide (not scoped to one child, since Player and
+// RosterPlayer aren't the same list and neither reliably identifies a
+// specific kid). Created by the mobile app's team-join flow, which reuses
+// the same join link a coach already shares for the public /teams/[id]/join
+// roster form. athleteName is display context only, never an access check.
+model TeamParent {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  athleteName String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+}
+
+// Opaque refresh tokens issued by the mobile auth endpoints (see
+// src/lib/mobileAuth.ts). Only a SHA-256 hash of the token is stored, so a
+// leaked database row can't be replayed as a real refresh token. Rotated
+// on every use; replacedByTokenHash + revokedAt let a reused (already-
+// rotated) token be detected and the whole chain revoked.
+model MobileRefreshToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash           String    @unique
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  replacedByTokenHash String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Player {
