@@ -106,6 +106,15 @@ export function tournamentScopeWhere(session: AdminSession) {
 //   const g = await guardDivision(id);
 //   if (!g.ok) return NextResponse.json({ error: g.error }, { status: g.status });
 //   // g.session is available here
+//
+// Every guard takes an optional pre-resolved `session`. Omit it (the
+// website's routes all do) and it's read from the NextAuth cookie, same
+// as always. The mobile API routes pass one explicitly -- resolved from
+// a bearer token via getMobileAdminSession() in src/lib/mobileAuth.ts --
+// so both transports share this exact same permission logic instead of
+// it being reimplemented per platform. Passing `null` (vs. leaving the
+// argument out) means "no session, don't fall back to the cookie" --
+// what an unauthenticated mobile request should get.
 
 export type Guard =
   | { ok: true; session: AdminSession }
@@ -118,40 +127,55 @@ const DENIED: Guard = {
 };
 const UNAUTH: Guard = { ok: false, status: 401, error: "Unauthorized" };
 
-export async function guardAdmin(): Promise<Guard> {
-  const session = await getAdminSession();
-  return session ? { ok: true, session } : UNAUTH;
+async function resolveSession(
+  session: AdminSession | null | undefined
+): Promise<AdminSession | null> {
+  return session === undefined ? await getAdminSession() : session;
 }
 
-export async function guardLeadAdmin(): Promise<Guard> {
-  const session = await getAdminSession();
-  if (!session) return UNAUTH;
-  if (!isLeadAdmin(session)) {
+export async function guardAdmin(session?: AdminSession | null): Promise<Guard> {
+  const s = await resolveSession(session);
+  return s ? { ok: true, session: s } : UNAUTH;
+}
+
+export async function guardLeadAdmin(session?: AdminSession | null): Promise<Guard> {
+  const s = await resolveSession(session);
+  if (!s) return UNAUTH;
+  if (!isLeadAdmin(s)) {
     return { ok: false, status: 403, error: "Only a lead admin can do this." };
   }
-  return { ok: true, session };
+  return { ok: true, session: s };
 }
 
-export async function guardTournament(tournamentId: string): Promise<Guard> {
-  const session = await getAdminSession();
-  if (!session) return UNAUTH;
-  return (await canManageTournament(tournamentId, session)) ? { ok: true, session } : DENIED;
+export async function guardTournament(
+  tournamentId: string,
+  session?: AdminSession | null
+): Promise<Guard> {
+  const s = await resolveSession(session);
+  if (!s) return UNAUTH;
+  return (await canManageTournament(tournamentId, s)) ? { ok: true, session: s } : DENIED;
 }
 
-export async function guardDivision(divisionId: string): Promise<Guard> {
-  const session = await getAdminSession();
-  if (!session) return UNAUTH;
-  return (await canManageDivision(divisionId, session)) ? { ok: true, session } : DENIED;
+export async function guardDivision(
+  divisionId: string,
+  session?: AdminSession | null
+): Promise<Guard> {
+  const s = await resolveSession(session);
+  if (!s) return UNAUTH;
+  return (await canManageDivision(divisionId, s)) ? { ok: true, session: s } : DENIED;
 }
 
-export async function guardGame(gameId: string): Promise<Guard> {
-  const session = await getAdminSession();
-  if (!session) return UNAUTH;
-  return (await canManageGame(gameId, session)) ? { ok: true, session } : DENIED;
+export async function guardGame(gameId: string, session?: AdminSession | null): Promise<Guard> {
+  const s = await resolveSession(session);
+  if (!s) return UNAUTH;
+  return (await canManageGame(gameId, s)) ? { ok: true, session: s } : DENIED;
 }
 
-export async function guardRegistration(registrationId: string): Promise<Guard> {
-  const session = await getAdminSession();
-  if (!session) return UNAUTH;
-  return (await canManageRegistration(registrationId, session)) ? { ok: true, session } : DENIED;
+export async function guardRegistration(
+  registrationId: string,
+  session?: AdminSession | null
+): Promise<Guard> {
+  const s = await resolveSession(session);
+  if (!s) return UNAUTH;
+  return (await canManageRegistration(registrationId, s)) ? { ok: true, session: s } : DENIED;
 }
