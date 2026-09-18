@@ -62,7 +62,7 @@ function RuleList({
       <p className="mt-1 text-xs text-ink/50">{description}</p>
 
       {rules.length === 0 ? (
-        <p className="mt-3 text-sm text-ink/50">No rules yet — ties won't be broken.</p>
+        <p className="mt-3 text-sm text-ink/50">No rules yet — ties won&apos;t be broken.</p>
       ) : (
         <ol className="mt-3 space-y-2">
           {rules.map((rule, index) => (
