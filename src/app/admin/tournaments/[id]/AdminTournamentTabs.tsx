@@ -5,10 +5,22 @@ import Link from "next/link";
 import type { Game, Registration } from "@prisma/client";
 import GenerateBracketButton from "./GenerateBracketButton";
 import ScoreEntry from "./ScoreEntry";
-import EditTournamentForm from "./EditTournamentForm";
+import EventDetailsForm, { type EventDetailsInitial } from "../EventDetailsForm";
+import EventOptionsForm, { type EventOptionsInitial } from "../EventOptionsForm";
+import EventScheduleForm, {
+  type EventScheduleInitial,
+  type CustomButton,
+} from "../EventScheduleForm";
+import EventContentForm, { type EventContentInitial } from "../EventContentForm";
+import EventAlertsForm, { type EventAlertsInitial } from "../EventAlertsForm";
+import DivisionsManager, { type DivisionRow, type OptionRef } from "./DivisionsManager";
+import TieBreakersManager from "./TieBreakersManager";
+import type { TiebreakerRule } from "@/lib/tiebreakers";
 import FlyerUpload from "./FlyerUpload";
+import LogoUpload from "./LogoUpload";
 import FinalizeResultsButton from "./FinalizeResultsButton";
 import PoolScheduleSetup from "./PoolScheduleSetup";
+import ScheduleManager, { type VenueOption, type ScheduleGameRow } from "./ScheduleManager";
 import BracketEditor from "./BracketEditor";
 import BracketFormatSettings from "./BracketFormatSettings";
 import ResetBracketButton from "@/components/admin/ResetBracketButton";
@@ -32,41 +44,71 @@ type DivisionData = {
   registeredCount: number;
 };
 
-const TABS = ["Info", "Results"] as const;
+const TABS = [
+  "Details",
+  "Divisions",
+  "Content",
+  "Options",
+  "Schedule",
+  "Tie Breakers",
+  "Alerts",
+  "Results",
+] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminTournamentTabs({
   tournamentId,
   tournamentName,
   flyerUrl,
+  logoUrl,
   isLead,
+  currentUserId,
   owner,
   admins,
-  editFormInitial,
-  editFormDivisions,
+  detailsInitial,
+  divisionOptions,
+  subdivisionOptions,
+  divisionRows,
+  tiebreakersInitial,
+  optionsInitial,
+  scheduleInitial,
+  allVenues,
+  attachedVenueIds,
+  scheduleGames,
+  customButtons,
+  contentInitial,
+  alertsInitial,
   divisions,
 }: {
   tournamentId: string;
   tournamentName: string;
   flyerUrl: string | null;
+  logoUrl: string | null;
   isLead: boolean;
+  currentUserId: string;
   owner: { id: string | null; name: string | null; acceptsPayments: boolean };
   admins: { id: string; name: string; email: string }[];
-  editFormInitial: {
-    name: string;
-    sport: string;
-    startDate: string;
-    endDate: string;
-    city: string;
-    state: string;
-    entryFeeDollars: number;
-    teamCap: number;
-    description: string;
+  detailsInitial: EventDetailsInitial;
+  divisionOptions: OptionRef[];
+  subdivisionOptions: OptionRef[];
+  divisionRows: DivisionRow[];
+  tiebreakersInitial: {
+    pointsPerEvent: number | null;
+    pointsPerGamePlayed: number | null;
+    poolTiebreakerOrder: TiebreakerRule[];
+    seedingTiebreakerOrder: TiebreakerRule[];
   };
-  editFormDivisions: { id: string; label: string; teamCap: number | null }[];
+  optionsInitial: EventOptionsInitial;
+  scheduleInitial: EventScheduleInitial;
+  allVenues: VenueOption[];
+  attachedVenueIds: string[];
+  scheduleGames: ScheduleGameRow[];
+  customButtons: CustomButton[];
+  contentInitial: EventContentInitial;
+  alertsInitial: EventAlertsInitial;
   divisions: DivisionData[];
 }) {
-  const [activeTab, setActiveTab] = useState<Tab>("Results");
+  const [activeTab, setActiveTab] = useState<Tab>("Details");
 
   return (
     <div className="min-h-screen bg-cream">
@@ -118,7 +160,7 @@ export default function AdminTournamentTabs({
         </div>
 
         <div className="mt-6">
-          {activeTab === "Info" && (
+          {activeTab === "Details" && (
             <div className="space-y-6">
               {isLead && (
                 <OrganizerControl
@@ -127,15 +169,63 @@ export default function AdminTournamentTabs({
                   admins={admins}
                 />
               )}
-              <div className="rounded-sm border border-steel/20 bg-white p-6">
+              <div className="flex flex-wrap gap-6 rounded-sm border border-steel/20 bg-white p-6">
+                <LogoUpload tournamentId={tournamentId} initialLogoUrl={logoUrl} />
                 <FlyerUpload tournamentId={tournamentId} initialFlyerUrl={flyerUrl} />
               </div>
-              <EditTournamentForm
+              <div className="rounded-sm border border-steel/20 bg-white p-6">
+                <EventDetailsForm
+                  mode="edit"
+                  tournamentId={tournamentId}
+                  isLead={isLead}
+                  admins={admins}
+                  currentUserId={currentUserId}
+                  currentOwnerId={owner.id}
+                  initial={detailsInitial}
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === "Divisions" && (
+            <DivisionsManager
+              tournamentId={tournamentId}
+              divisions={divisionRows}
+              divisionOptions={divisionOptions}
+              subdivisionOptions={subdivisionOptions}
+            />
+          )}
+
+          {activeTab === "Tie Breakers" && (
+            <TieBreakersManager tournamentId={tournamentId} initial={tiebreakersInitial} />
+          )}
+
+          {activeTab === "Options" && (
+            <EventOptionsForm tournamentId={tournamentId} isLead={isLead} initial={optionsInitial} />
+          )}
+
+          {activeTab === "Schedule" && (
+            <div className="space-y-6">
+              <ScheduleManager
                 tournamentId={tournamentId}
-                initial={editFormInitial}
-                divisions={editFormDivisions}
+                allVenues={allVenues}
+                attachedVenueIds={attachedVenueIds}
+                games={scheduleGames}
+              />
+              <EventScheduleForm
+                tournamentId={tournamentId}
+                initial={scheduleInitial}
+                customButtons={customButtons}
               />
             </div>
+          )}
+
+          {activeTab === "Content" && (
+            <EventContentForm tournamentId={tournamentId} initial={contentInitial} />
+          )}
+
+          {activeTab === "Alerts" && (
+            <EventAlertsForm tournamentId={tournamentId} initial={alertsInitial} />
           )}
 
           {activeTab === "Results" && (

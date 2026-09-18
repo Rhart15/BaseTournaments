@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getAdminSession, isLeadAdmin } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
-import NewTournamentForm from "./NewTournamentForm";
+import EventDetailsForm from "../EventDetailsForm";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,38 @@ export default async function NewTournamentPage() {
       </header>
 
       <div className="mx-auto max-w-2xl px-6 py-10">
-        <NewTournamentForm isLead={lead} admins={admins} currentUserId={session.user.id} />
+        <EventDetailsForm
+          mode="create"
+          isLead={lead}
+          admins={admins}
+          currentUserId={session.user.id}
+          initial={{
+            name: "",
+            season: "",
+            sport: "SOFTBALL",
+            eventType: "TOURNAMENT",
+            entryType: "TEAM",
+            status: "DRAFT",
+            featured: false,
+            startDate: "",
+            endDate: "",
+            dailyStartTime: "",
+            dailyEndTime: "",
+            registrationOpensAt: "",
+            registrationClosesAt: "",
+            registrationStatus: "OPEN",
+            city: "",
+            state: "AR",
+            address: "",
+            displayLocation: "",
+            slug: "",
+            entryFeeDollars: 0,
+            teamCap: 24,
+            description: "",
+            staffTags: "",
+            showFlyerInsteadOfLogo: false,
+          }}
+        />
       </div>
     </div>
   );

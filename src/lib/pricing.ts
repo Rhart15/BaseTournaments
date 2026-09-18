@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/db";
 
+export { computeSalesTaxCents, computeProcessingFeeCents, PROCESSING_FEE_PERCENT } from "@/lib/checkoutMath";
+
 // Multi-team discount: registering a 2nd+ team from the same coach email
 // into the SAME tournament automatically knocks a flat percentage off.
 // This is a simple, non-configurable policy for now -- if BASE wants this

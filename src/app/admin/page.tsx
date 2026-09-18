@@ -7,6 +7,8 @@ import DirectorRow from "@/components/admin/DirectorRow";
 import AddDirectorForm from "@/components/admin/AddDirectorForm";
 import TeamRow from "@/components/admin/TeamRow";
 import AddTeamForm from "@/components/admin/AddTeamForm";
+import VenueRow from "@/components/admin/VenueRow";
+import AddVenueForm from "@/components/admin/AddVenueForm";
 import CleanupTestDataButton from "@/components/admin/CleanupTestDataButton";
 import PayoutStatusBanner from "@/components/admin/PayoutStatusBanner";
 
@@ -29,7 +31,7 @@ export default async function AdminPage() {
     },
   });
 
-  const [tournaments, directors, teams, unhandledContacts] = await Promise.all([
+  const [tournaments, directors, teams, venues, unhandledContacts] = await Promise.all([
     prisma.tournament.findMany({
       where: tournamentScopeWhere(session),
       orderBy: { startDate: "asc" },
@@ -42,6 +44,10 @@ export default async function AdminPage() {
     prisma.team.findMany({
       orderBy: { name: "asc" },
       include: { director: true, _count: { select: { players: true } } },
+    }),
+    prisma.venue.findMany({
+      orderBy: { name: "asc" },
+      include: { _count: { select: { tournaments: true, tournamentVenues: true, games: true } } },
     }),
     prisma.contactSubmission.findMany({
       where: { handled: false },
@@ -255,6 +261,48 @@ export default async function AdminPage() {
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-ink/50">
                     No teams yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+
+        {/* Venues */}
+        <section>
+          <div className="flex items-center justify-between">
+            <h2 className="display text-xl">Venues</h2>
+            <AddVenueForm />
+          </div>
+          <table className="mt-6 w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-steel/40 text-left text-ink/50">
+                <th className="py-2">Name</th>
+                <th>Address</th>
+                <th>Fields</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {venues.map((v) => (
+                <VenueRow
+                  key={v.id}
+                  venue={{
+                    id: v.id,
+                    name: v.name,
+                    address: v.address,
+                    city: v.city,
+                    state: v.state,
+                    fieldCount: v.fieldCount,
+                    usageCount: v._count.tournaments + v._count.tournamentVenues + v._count.games,
+                  }}
+                />
+              ))}
+              {venues.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-ink/50">
+                    No venues yet.
                   </td>
                 </tr>
               )}

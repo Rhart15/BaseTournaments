@@ -67,6 +67,19 @@ export async function canManageDivision(
   return Boolean(d && d.tournament.ownerId && d.tournament.ownerId === session.user.id);
 }
 
+export async function canManageCustomButton(
+  buttonId: string,
+  session: AdminSession | null
+): Promise<boolean> {
+  if (!session) return false;
+  if (isLeadAdmin(session)) return true;
+  const b = await prisma.eventCustomButton.findUnique({
+    where: { id: buttonId },
+    select: { tournament: { select: { ownerId: true } } },
+  });
+  return Boolean(b && b.tournament.ownerId && b.tournament.ownerId === session.user.id);
+}
+
 export async function canManageGame(
   gameId: string,
   session: AdminSession | null
@@ -163,6 +176,15 @@ export async function guardDivision(
   const s = await resolveSession(session);
   if (!s) return UNAUTH;
   return (await canManageDivision(divisionId, s)) ? { ok: true, session: s } : DENIED;
+}
+
+export async function guardCustomButton(
+  buttonId: string,
+  session?: AdminSession | null
+): Promise<Guard> {
+  const s = await resolveSession(session);
+  if (!s) return UNAUTH;
+  return (await canManageCustomButton(buttonId, s)) ? { ok: true, session: s } : DENIED;
 }
 
 export async function guardGame(gameId: string, session?: AdminSession | null): Promise<Guard> {

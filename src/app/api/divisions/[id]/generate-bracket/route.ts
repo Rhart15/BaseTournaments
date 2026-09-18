@@ -24,7 +24,14 @@ export async function POST(
 
   const division = await prisma.division.findUnique({
     where: { id: divisionId },
-    include: { registrations: true },
+    include: {
+      registrations: true,
+      tournament: { select: { seedingTiebreakerOrder: true } },
+      games: {
+        where: { stage: "POOL", status: "FINAL" },
+        select: { homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true },
+      },
+    },
   });
 
   if (!division) {
@@ -49,7 +56,11 @@ export async function POST(
   // registration order, which the admin can fix up afterward with the
   // drag-and-drop bracket editor.
   const seededTeamIds = division.usePoolPlay
-    ? seedFromPoolStandings(activeRegistrations)
+    ? seedFromPoolStandings(
+        activeRegistrations,
+        division.games,
+        division.tournament.seedingTiebreakerOrder
+      )
     : [...activeRegistrations]
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
         .map((r) => r.id);

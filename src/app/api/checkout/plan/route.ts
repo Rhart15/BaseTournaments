@@ -4,7 +4,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 import { resolveTournamentPayout, feeFor } from "@/lib/connect";
-import { resolveDiscount } from "@/lib/pricing";
+import { resolveDiscount, computeSalesTaxCents, computeProcessingFeeCents } from "@/lib/pricing";
+import { checkDivisionCapacity } from "@/lib/divisionCapacity";
 
 const planSchema = z.object({
   tournamentId: z.string(),
@@ -66,6 +67,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This tournament is full" }, { status: 409 });
   }
 
+  const capacity = await checkDivisionCapacity(tournamentId, divisionId);
+  if (!capacity.ok) {
+    return NextResponse.json({ error: capacity.error }, { status: capacity.httpStatus });
+  }
+
+  // Waitlisted -- park the registration with no installments/charge at all,
+  // same as the other checkout routes.
+  if (capacity.waitlist) {
+    const ownTeam = await prisma.team.findFirst({
+      where: { coachUserId: authSession.user.id },
+      select: { id: true },
+    });
+    const registration = await prisma.registration.create({
+      data: {
+        tournamentId,
+        divisionId,
+        teamName,
+        coachName,
+        coachEmail,
+        coachPhone,
+        teamId: ownTeam?.id ?? null,
+        status: "WAITLISTED",
+        waitlistedAt: new Date(),
+      },
+    });
+    return NextResponse.json({ registrationId: registration.id, waitlisted: true });
+  }
+
   const [ownTeam, user] = await Promise.all([
     prisma.team.findFirst({
       where: { coachUserId: authSession.user.id },
@@ -104,7 +133,18 @@ export async function POST(req: NextRequest) {
   if (discount.error) {
     return NextResponse.json({ error: discount.error }, { status: 400 });
   }
-  const totalCents = Math.max(0, tournament.entryFeeCents - discount.discountCents);
+  const preTaxCents = Math.max(0, tournament.entryFeeCents - discount.discountCents);
+  // Tax is spread proportionally across every installment rather than
+  // itemized separately -- later installments are charged off-session by
+  // the cron as a single PaymentIntent amount with no line-item concept at
+  // all, so itemizing it just for installment 1's Checkout Session would
+  // be inconsistent with how 2-N are actually charged.
+  const taxCents = computeSalesTaxCents(preTaxCents, tournament.salesTaxOverridePercent);
+  // Processing fee is baked into the total the same way tax is (see the
+  // comment above taxCents) rather than itemized -- same reasoning:
+  // installments 2-N have no line-item concept to itemize into anyway.
+  const feeCents = computeProcessingFeeCents(preTaxCents + taxCents, tournament.disableProcessingFee);
+  const totalCents = preTaxCents + taxCents + feeCents;
 
   // Split into equal installments, 30 days apart; the last one absorbs
   // whatever's left over from integer division so the total matches
@@ -128,6 +168,8 @@ export async function POST(req: NextRequest) {
       teamId: ownTeam?.id ?? null,
       discountCodeId: discount.discountCodeId,
       discountAmountCents: discount.discountCents,
+      salesTaxCents: taxCents,
+      processingFeeCents: feeCents,
     },
   });
 
@@ -166,7 +208,13 @@ export async function POST(req: NextRequest) {
       // Route this installment to the organizer's connected account. The
       // whole flat platform fee is taken here on the first installment;
       // later installments (charged off-session by the cron) carry no
-      // application fee -- see /lib/installments.ts.
+      // application fee -- see /lib/installments.ts. feeFor() is computed
+      // from the actual (tax- and processing-fee-inclusive, since both are
+      // baked into the installment split above) first-installment amount --
+      // a small, deliberate simplification vs. the other routes'
+      // entry-fee-only basis, since the flat $15 fee is unaffected either
+      // way except in edge cases where tax/fee alone would push the
+      // installment past $15.
       transfer_data: { destination: payout.destination },
       on_behalf_of: payout.destination,
       application_fee_amount: feeFor(firstInstallment.amountCents),
@@ -181,7 +229,15 @@ export async function POST(req: NextRequest) {
           currency: "usd",
           unit_amount: firstInstallment.amountCents,
           product_data: {
-            name: `${tournament.name} — ${teamName} (installment 1 of ${installmentCount})`,
+            name: `${tournament.name} — ${teamName} (installment 1 of ${installmentCount}${
+              taxCents > 0 && feeCents > 0
+                ? ", incl. tax & fee"
+                : taxCents > 0
+                ? ", incl. tax"
+                : feeCents > 0
+                ? ", incl. fee"
+                : ""
+            })`,
           },
         },
         quantity: 1,

@@ -1,6 +1,7 @@
 import { BracketsManager } from "brackets-manager";
 import { InMemoryDatabase } from "brackets-memory-db";
 import type { Registration } from "@prisma/client";
+import { rankTeamsByTiebreakers, type TiebreakerGame, type TiebreakerRule } from "@/lib/tiebreakers";
 
 // brackets-manager handles elimination-bracket structure and advancement
 // logic (single/double elim, byes, seeding slots). Pool play standings are
@@ -14,30 +15,19 @@ export function createBracketManager() {
 }
 
 /**
- * Rank pool-play teams by win %, then run differential, then head-to-head
- * runs allowed, matching standard youth tournament tiebreaker rules.
- * Returns team registration IDs in seed order (best team first).
+ * Ranks pool-play teams using the tournament's configured seeding
+ * tiebreaker order (Tournament.seedingTiebreakerOrder) -- see
+ * src/lib/tiebreakers.ts for the ranking rules themselves. `poolGames`
+ * should be every pool-stage game in the division (needed for
+ * head-to-head/strength-of-schedule). Returns team registration IDs in
+ * seed order (best team first).
  */
-export function seedFromPoolStandings(teams: Registration[]): string[] {
-  return [...teams]
-    .sort((a, b) => {
-      const winPctA = winPercentage(a);
-      const winPctB = winPercentage(b);
-      if (winPctB !== winPctA) return winPctB - winPctA;
-
-      const diffA = a.runsFor - a.runsAgainst;
-      const diffB = b.runsFor - b.runsAgainst;
-      if (diffB !== diffA) return diffB - diffA;
-
-      return a.runsAgainst - b.runsAgainst; // fewest runs allowed wins ties
-    })
-    .map((team) => team.id);
-}
-
-function winPercentage(team: Registration): number {
-  const gamesPlayed = team.poolWins + team.poolLosses;
-  if (gamesPlayed === 0) return 0;
-  return team.poolWins / gamesPlayed;
+export function seedFromPoolStandings(
+  teams: Registration[],
+  poolGames: TiebreakerGame[],
+  seedingTiebreakerOrder: TiebreakerRule[]
+): string[] {
+  return rankTeamsByTiebreakers(teams, poolGames, seedingTiebreakerOrder).map((team) => team.id);
 }
 
 /**

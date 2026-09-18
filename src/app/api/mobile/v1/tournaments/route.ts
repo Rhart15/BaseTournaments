@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
   const when = searchParams.get("when");
 
   const tournaments = await prisma.tournament.findMany({
-    where: sport === "BASEBALL" || sport === "SOFTBALL" ? { sport: sport as Sport } : undefined,
+    where: {
+      status: "PUBLISHED",
+      ...(sport === "BASEBALL" || sport === "SOFTBALL" ? { sport: sport as Sport } : {}),
+    },
     orderBy: { startDate: "asc" },
     select: {
       id: true,

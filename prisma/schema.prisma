@@ -16,11 +16,61 @@ enum Sport {
   SOFTBALL
 }
 
+enum EventType {
+  TOURNAMENT
+  LEAGUE
+}
+
+enum EntryType {
+  TEAM
+  INDIVIDUAL
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum EventRegistrationStatus {
+  OPEN
+  CLOSED
+  WAITLIST
+}
+
+enum DepositType {
+  PERCENT
+  FLAT
+}
+
+// Ordered lists of these (Tournament.poolTiebreakerOrder /
+// seedingTiebreakerOrder) drive seedFromPoolStandings() in
+// src/lib/brackets.ts -- array order is the priority order, first match wins.
+enum TiebreakerRule {
+  HEAD_TO_HEAD
+  RUN_DIFFERENTIAL
+  RUNS_ALLOWED
+  RUNS_SCORED
+  FEWEST_LOSSES
+  FORFEIT_RECORD
+  STRENGTH_OF_SCHEDULE
+  COIN_FLIP
+}
+
 enum RegistrationStatus {
   PENDING
   PAID
   REFUNDED
   CANCELLED
+  // A team past a division's capacity when Division.waitlistEnabled is on.
+  // Not created by checkout yet (see DivisionsManager / admin invite panel) --
+  // today this is only reachable via an admin manually setting it.
+  WAITLISTED
+}
+
+enum DivisionFormat {
+  POOL_PLAY // no engine support yet -- see generate-bracket route/brackets.ts
+  BRACKET
+  BOTH
 }
 
 enum GameStage {
@@ -63,8 +113,192 @@ model Tournament {
   ownerId String?
   owner   User?   @relation("TournamentOwner", fields: [ownerId], references: [id])
 
+  // --- Event wizard: Details --------------------------------------
+  season              String? // e.g. "Fall 2026"
+  eventType           EventType               @default(TOURNAMENT)
+  entryType           EntryType               @default(TEAM)
+  // DRAFT is the correct default going forward; the 23 tournaments that
+  // predate this column are one-time-backfilled to PUBLISHED right after
+  // this migration lands (see scripts/backfill-event-wizard-fields.mjs),
+  // not via a schema default, so new events still start as drafts.
+  status              EventStatus             @default(DRAFT)
+  featured            Boolean                 @default(false)
+  dailyStartTime      String? // "HH:mm", local to the event
+  dailyEndTime        String?
+  registrationStatus  EventRegistrationStatus @default(OPEN)
+  address             String? // street address; city/state above already cover the rest
+  displayLocation     String? // public override, e.g. "Downtown Sports Complex"
+  slug                String?                 @unique // auto-generated from name+location+date, editable
+  logoUrl             String?
+  showFlyerInsteadOfLogo Boolean              @default(false)
+  staffTags           String[]                @default([])
+
+  // --- Event wizard: Content ---------------------------------------
+  // `description` above is the rich-text description/rules field (already
+  // rendered publicly); this is the wizard's second, separate content field.
+  additionalContent String?
+
+  // --- Event wizard: Options -----------------------------------------
+
+  // Roster rules
+  rosterMin                Int? // not currently exposed in the Options UI
+  rosterMax                Int?
+  guestPlayerLimit         Int? // "max guest players"
+  guestPlayerLimitHigherLevel Int? // "max higher-level guest players"
+  freezeRoster             Boolean   @default(false)
+  acceptRostersAfterStart  Boolean   @default(false)
+  rosterDeadlineAt         DateTime?
+
+  // Checkout / payments
+  disableCheckPayLater  Boolean       @default(false)
+  disableECheck         Boolean       @default(false)
+  disableCreditCard     Boolean       @default(false)
+  disableProcessingFee  Boolean       @default(false) // stored only -- no fee is applied anywhere in checkout yet
+  addToCartText         String?
+  depositType           DepositType?
+  depositAmount         Int? // PERCENT: whole-number percent. FLAT: cents.
+  // No Sales Tax settings table exists anywhere in the app -- this is a
+  // per-event override with no platform default to fall back to yet, and
+  // isn't applied in checkout math. See item #6 (processing fees/sales tax)
+  // in the original admin-hierarchy plan for the eventual global settings.
+  salesTaxOverridePercent Float?
+  // Lead-admin-only field (enforced in the API route, not just the UI --
+  // see src/lib/adminAuth.ts guardLeadAdmin). "Protected" is derived from
+  // this being set, not a separate boolean that could drift out of sync.
+  eventPasswordHash     String?
+  showEventForms        Boolean       @default(true)
+
+  // Display / teams & players -- event-wide switches, independent of the
+  // per-division visibility toggles on Division (those scope one division;
+  // these scope the whole event). No precedence between the two is wired
+  // up yet -- that's for whatever renders the public pages to decide.
+  showTeamsAttending             Boolean @default(true)
+  showWaitlistedTeams            Boolean @default(true)
+  showTeamAssignedInPlayerDashboard Boolean @default(true)
+  showTeamsAttendingRosters      Boolean @default(true)
+  showFinalResults               Boolean @default(true)
+  disableRosterNotifications     Boolean @default(false)
+  hideTeamsAttendingLocation     Boolean @default(false)
+  hideVenues                     Boolean @default(false)
+  hideRules                      Boolean @default(false)
+  showRosterOnTeamSchedule       Boolean @default(true)
+  showRosterCountOnTeamsAttending Boolean @default(true)
+  teamsAttendingDescription      String?
+
+  // Bullet points & labels -- cosmetic text shown on the public event page.
+  // Flat columns: exactly one set of these per event, not a repeatable list.
+  gameGuaranteeText        String? // e.g. "3gg"
+  awardsText               String? // e.g. "1-3"
+  batType                  String?
+  fieldType                String?
+  genderLabel              String? // Coed/Boys/Girls/Open -- display only
+  divisionLabelOverride    String?
+  costLabelOverride        String?
+  specialPriceLabelOverride String?
+  stayToPlay               Boolean @default(false)
+
+  // Products & tickets -- settings only, not a product/ticket catalog
+  // (no repeatable line items yet; that'd be a separate future feature).
+  productsEnabled           Boolean @default(false)
+  productsSalesTaxPercent   Float?
+  ticketsEnabled            Boolean @default(false)
+  ticketsSalesTaxPercent    Float?
+  // A link out to a third-party ticket seller, separate from the built-in
+  // tickets-with-sales-tax toggle above.
+  ticketsExternalLinkEnabled Boolean @default(false)
+  ticketsExternalUrl        String?
+  ticketsButtonBgColor      String?
+  ticketsButtonTextColor    String?
+
+  // Schedule requests
+  scheduleRequestEnabledAtCheckout  Boolean @default(false)
+  scheduleRequestEnabledInDashboard Boolean @default(false)
+  scheduleRequestMaxPerTeam         Int?
+  scheduleRequestInstructions       String?
+
+  // --- Event wizard: Schedule ------------------------------------------
+  // None of this section is consumed by the actual scheduling engine yet
+  // (PoolScheduleSetup.tsx, brackets.ts) or by pricing.ts -- stored for the
+  // wizard UI only until that logic gets built. Flagged in EventScheduleForm.
+  hideSchedule                Boolean  @default(false)
+  scheduleIntervalMinutes     Int      @default(30) // 15 / 30 / 45 / 60
+  maxGamesPerDay              Int? // event-wide cap, distinct from payPerGameMaxPerDay below
+  coachSelfSchedulingEnabled  Boolean  @default(false)
+  coachSelfScoringEnabled     Boolean  @default(false)
+  poolToPoolEvent             Boolean  @default(false)
+  scheduleNotesWhenShown      String? // shown while hideSchedule=false
+  scheduleNotesWhenHidden     String? // shown while hideSchedule=true
+  payPerGameEnabled           Boolean  @default(false)
+  payPerGameIncludedGames     Int?
+  payPerGameMaxPerDay         Int? // cap on games/day counted toward pay-per-game billing
+  payPerGamePriceCents        Int?
+  // Distinct from scheduleRequestEnabledInDashboard above -- that's a
+  // request to change the schedule; this is a request to buy/play an
+  // additional game beyond the included pay-per-game allotment.
+  payPerGameRequestEnabledInDashboard Boolean @default(false)
+  paidPracticeEnabled         Boolean  @default(false)
+  paidPracticeMaxSessions     Int?
+  paidPracticeDurationMinutes Int?
+  paidPracticePriceCents      Int?
+
+  // --- Event wizard: Tie Breakers ---------------------------------------
+  // Ordered priority lists consumed by seedFromPoolStandings() in
+  // src/lib/brackets.ts -- first rule that isn't a tie wins.
+  pointsPerEvent         Int?
+  pointsPerGamePlayed    Int?
+  poolTiebreakerOrder    TiebreakerRule[] @default([])
+  seedingTiebreakerOrder TiebreakerRule[] @default([])
+
+  // --- Event wizard: Alerts ---------------------------------------------
+  // Each alert is a button label + the rich content shown when it's
+  // expanded/clicked -- not yet rendered anywhere on the public pages.
+  weatherAlertButtonLabel String? // e.g. "Weather Updates"
+  weatherAlertContent     String? // shown when the button above is expanded
+  eventAlertButtonLabel   String? // e.g. "Event Alert"
+  eventAlertMessage       String? // more urgent banner-style message
+
   divisions     Division[]
   registrations Registration[]
+  customButtons EventCustomButton[]
+  tournamentVenues TournamentVenue[]
+}
+
+// --- Schedule wizard step: repeatable custom-button list ----------------
+model EventCustomButton {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  text      String
+  url       String
+  sortOrder Int    @default(0)
+
+  createdAt DateTime @default(now())
+}
+
+// --- Divisions wizard step: reusable master lists ----------------------
+// Picked from when building a Division row on an event; kept separate from
+// Division itself so the same age-group/skill-level names are reusable
+// across events instead of re-typed per tournament.
+
+model DivisionOption {
+  id        String  @id @default(cuid())
+  label     String  @unique // "6U", "8U", "10U", "12U", "Open", ...
+  sport     Sport? // null = applies to both sports
+  sortOrder Int     @default(0)
+  active    Boolean @default(true) // retire without deleting rows that reference it
+
+  divisions Division[]
+}
+
+model SubdivisionOption {
+  id        String  @id @default(cuid())
+  label     String  @unique // "Open", "A", "AA", "AAA", "Major", "Rec", ...
+  sport     Sport?
+  sortOrder Int     @default(0)
+  active    Boolean @default(true)
+
+  divisions Division[]
 }
 
 model Venue {
@@ -74,7 +308,29 @@ model Venue {
   city        String
   state       String       @default("AR")
   fieldCount  Int          @default(1)
+  // Legacy single-venue link (still drives the public map/address display
+  // on the tournament page) -- untouched by the Schedule step.
   tournaments Tournament[]
+  // Venues actually used for schedule generation -- a tournament can use
+  // more than one. Falls back to the legacy single relation above when
+  // empty (see src/lib/scheduleGenerator.ts).
+  tournamentVenues TournamentVenue[]
+  games            Game[]
+}
+
+// Join table: which venues a tournament's schedule can use. Separate from
+// Tournament.venueId (kept as-is for the existing map/address display)
+// since that's a single optional FK and can't represent a multi-venue
+// event on its own.
+model TournamentVenue {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  venueId      String
+  venue        Venue      @relation(fields: [venueId], references: [id])
+  createdAt    DateTime   @default(now())
+
+  @@unique([tournamentId, venueId])
 }
 
 model Division {
@@ -98,6 +354,46 @@ model Division {
   // feature (see /lib/brackets.ts).
   usePoolPlay   Boolean @default(true)
   gameGuarantee Int     @default(3)
+
+  // --- Event wizard: Divisions row fields -------------------------------
+  // Picked from the reusable master lists; label/publicLabelOverride stay
+  // the source of truth for display everywhere else in the app, so
+  // existing readers of Division.label don't need to change.
+  divisionOptionId    String?
+  divisionOption      DivisionOption?    @relation(fields: [divisionOptionId], references: [id])
+  subdivisionOptionId String?
+  subdivisionOption   SubdivisionOption? @relation(fields: [subdivisionOptionId], references: [id])
+
+  publicLabelOverride    String?
+  priceCents             Int? // overrides Tournament.entryFeeCents when set
+  gameTimeLimitMinutes   Int?
+  breakMinutes           Int?
+  // BRACKET/BOTH map onto usePoolPlay above and drive real bracket
+  // generation; POOL_PLAY has no engine support yet (see brackets.ts).
+  format                 DivisionFormat? @default(BOTH)
+  colorTag               String?
+  waitlistEnabled        Boolean   @default(false)
+  ghostTeamsCount        Int       @default(0)
+  leagueGamesCount       Int? // for eventType=LEAGUE
+  maxRD                  Int? // generic numeric setting
+  genderFilter           String?
+  specialPriceCents      Int?
+  specialPriceCutoffDate DateTime?
+  // Only when this division plays somewhere other than the event's main
+  // address -- used for distance calculations.
+  addressOverride        String?
+  postalCodeOverride     String?
+  sortOrder              Int       @default(0)
+
+  // Per-division public visibility toggles.
+  showRegistration       Boolean @default(true)
+  showTeamsAttending     Boolean @default(true)
+  showWaitlist           Boolean @default(true)
+  showPoolStandings      Boolean @default(true)
+  showDivisionStandings  Boolean @default(true)
+  showOverallStandings   Boolean @default(true)
+  showSchedule           Boolean @default(true)
+  showResults            Boolean @default(true)
 }
 
 model Pool {
@@ -127,6 +423,9 @@ model Registration {
   status          RegistrationStatus @default(PENDING)
   stripeSessionId String?
   paidAt          DateTime?
+  // Set when an admin puts this registration on a division's waitlist
+  // (status=WAITLISTED); orders the invite queue oldest-first.
+  waitlistedAt    DateTime?
 
   seed        Int? // seed going into the bracket after pool play
   poolWins    Int  @default(0)
@@ -152,6 +451,17 @@ model Registration {
   discountCodeId      String?
   discountCode        DiscountCode? @relation(fields: [discountCodeId], references: [id])
   discountAmountCents Int           @default(0)
+
+  // Sales tax actually charged, from Tournament.salesTaxOverridePercent at
+  // the time of checkout -- kept on the registration (like discountAmountCents
+  // above) so refund math (chargedCentsFor in src/lib/refunds.ts) knows the
+  // true total charged, not just the entry fee.
+  salesTaxCents Int @default(0)
+  // Processing fee actually charged, from computeProcessingFeeCents() at
+  // checkout time (src/lib/pricing.ts) -- same reasoning/pattern as
+  // salesTaxCents above: a second charged component refund math needs to
+  // reconstruct the true total from stored fields.
+  processingFeeCents Int @default(0)
 
   // Set when this registration was one of several paid together in a
   // single cart checkout (see /api/checkout/cart). Null for a normal
@@ -278,8 +588,22 @@ model Game {
   awayTeamId String?
   awayTeam   Registration? @relation("AwayTeam", fields: [awayTeamId], references: [id])
 
-  fieldName String?
-  startTime DateTime?
+  // fieldName stays a free-text display string -- the schedule generator
+  // keeps it in sync with venue/fieldNumber below ("Riverside Park — Field
+  // 2") so existing readers (public schedule table, BracketTree,
+  // ScoreEntry, mobile API) need no changes. venueId/fieldNumber are the
+  // structured source of truth used for double-booking checks and the
+  // admin schedule editor's venue/field picker.
+  fieldName   String?
+  startTime   DateTime?
+  venueId     String?
+  venue       Venue?    @relation(fields: [venueId], references: [id])
+  fieldNumber Int?
+  // True once an admin has manually set/moved this game's venue/field/time
+  // (via the schedule editor or the per-game field/time inputs) -- the
+  // bulk schedule generator skips (and treats as already-occupied) any
+  // locked game unless the admin explicitly opts in to overriding it too.
+  scheduleLocked Boolean @default(false)
 
   homeScore Int?
   awayScore Int?

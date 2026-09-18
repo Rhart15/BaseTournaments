@@ -12,6 +12,8 @@ export type CartItem = {
   divisionLabel: string;
   teamName: string;
   entryFeeCents: number;
+  salesTaxOverridePercent: number | null;
+  disableProcessingFee: boolean;
 };
 
 type CartContextValue = {

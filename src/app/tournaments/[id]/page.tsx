@@ -3,6 +3,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { prisma } from "@/lib/db";
+import { getAdminSession, canManageTournament } from "@/lib/adminAuth";
 import RegisterForm from "./RegisterForm";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,17 @@ export default async function TournamentDetailPage({
   });
 
   if (!tournament) notFound();
+
+  // A DRAFT event is invisible to the public, but an admin with edit
+  // access (owner, or a lead admin -- same check the wizard uses) can
+  // still preview it here, with a banner making the draft status obvious.
+  let isDraftPreview = false;
+  if (tournament.status !== "PUBLISHED") {
+    const session = await getAdminSession();
+    const canPreview = session && (await canManageTournament(id, session));
+    if (!canPreview) notFound();
+    isDraftPreview = true;
+  }
 
   // Registration is only possible once the organizer can actually take
   // (and be paid) the money.
@@ -64,6 +76,12 @@ export default async function TournamentDetailPage({
   return (
     <>
       <SiteHeader />
+
+      {isDraftPreview && (
+        <div className="bg-gold px-6 py-2 text-center text-sm font-semibold text-navy">
+          DRAFT — not visible to the public. Only you can see this preview.
+        </div>
+      )}
 
       <section className="bg-navy py-14 text-white">
         <div className="mx-auto max-w-6xl px-6">
@@ -203,6 +221,8 @@ export default async function TournamentDetailPage({
                 tournamentId={tournament.id}
                 tournamentName={tournament.name}
                 entryFeeCents={tournament.entryFeeCents}
+                salesTaxOverridePercent={tournament.salesTaxOverridePercent}
+                disableProcessingFee={tournament.disableProcessingFee}
                 divisions={tournament.divisions.map((d) => ({
                   id: d.id,
                   label: d.label,

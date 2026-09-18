@@ -5,16 +5,21 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useCart } from "@/components/CartContext";
+import { computeSalesTaxCents, computeProcessingFeeCents } from "@/lib/checkoutMath";
 
 export default function RegisterForm({
   tournamentId,
   tournamentName,
   entryFeeCents,
+  salesTaxOverridePercent,
+  disableProcessingFee,
   divisions,
 }: {
   tournamentId: string;
   tournamentName: string;
   entryFeeCents: number;
+  salesTaxOverridePercent: number | null;
+  disableProcessingFee: boolean;
   divisions: { id: string; label: string }[];
 }) {
   const router = useRouter();
@@ -26,6 +31,17 @@ export default function RegisterForm({
   const [paymentMethod, setPaymentMethod] = useState<"card" | "vip" | "plan">("card");
   const [installmentCount, setInstallmentCount] = useState(3);
   const [added, setAdded] = useState(false);
+
+  // Pre-payment estimate shown to the registrant -- before any discount
+  // code or the automatic multi-team discount, since those depend on
+  // server-side lookups (code validity, prior registrations for this
+  // coach) that aren't available yet at this point in the flow. Uses the
+  // exact same math checkout will actually apply (see /lib/checkoutMath),
+  // so it only ever differs from the real charge by a discount making the
+  // real charge lower, never a mismatch in the tax/fee calculation itself.
+  const taxCents = computeSalesTaxCents(entryFeeCents, salesTaxOverridePercent);
+  const feeCents = computeProcessingFeeCents(entryFeeCents + taxCents, disableProcessingFee);
+  const totalCents = entryFeeCents + taxCents + feeCents;
 
   function handleAddToCart() {
     const form = formRef.current;
@@ -47,6 +63,8 @@ export default function RegisterForm({
       divisionLabel: division?.label ?? "",
       teamName,
       entryFeeCents,
+      salesTaxOverridePercent,
+      disableProcessingFee,
     });
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -95,7 +113,7 @@ export default function RegisterForm({
         return;
       }
 
-      if (paymentMethod === "vip" || data.free) {
+      if (paymentMethod === "vip" || data.free || data.waitlisted) {
         router.push(`/register/success?registration=${data.registrationId}`);
       } else {
         window.location.href = data.checkoutUrl;
@@ -108,6 +126,34 @@ export default function RegisterForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-sm border border-steel/20 bg-cream/60 p-3 text-sm">
+        <div className="flex justify-between">
+          <span className="text-ink/60">Entry fee</span>
+          <span>${(entryFeeCents / 100).toFixed(2)}</span>
+        </div>
+        {taxCents > 0 && (
+          <div className="flex justify-between text-ink/60">
+            <span>Sales tax</span>
+            <span>${(taxCents / 100).toFixed(2)}</span>
+          </div>
+        )}
+        {feeCents > 0 && (
+          <div className="flex justify-between text-ink/60">
+            <span>Processing fee</span>
+            <span>${(feeCents / 100).toFixed(2)}</span>
+          </div>
+        )}
+        <div className="mt-1 flex justify-between border-t border-steel/20 pt-1 font-semibold">
+          <span>Estimated total</span>
+          <span>${(totalCents / 100).toFixed(2)}</span>
+        </div>
+        {(taxCents > 0 || feeCents > 0) && (
+          <p className="mt-1 text-xs text-ink/50">
+            A discount code or multi-team discount, if any, is applied to the entry fee at checkout.
+          </p>
+        )}
+      </div>
+
       <div>
         <label className="text-sm font-medium">Division</label>
         <select
@@ -232,9 +278,10 @@ export default function RegisterForm({
             <option value={4}>4 payments, 30 days apart</option>
           </select>
           <p className="mt-2 text-xs text-ink/50">
-            First payment (${(entryFeeCents / installmentCount / 100).toFixed(2)}
-            {" "}approx.) charges today to the card you enter; the rest are
-            charged automatically to the same card on their due dates.
+            First payment (${(totalCents / installmentCount / 100).toFixed(2)}
+            {" "}approx., incl. tax/fee) charges today to the card you enter;
+            the rest are charged automatically to the same card on their due
+            dates.
           </p>
         </div>
       )}

@@ -54,11 +54,16 @@ export default async function DivisionPage({
               id: division.id,
               label: division.label,
               bracketPublished: division.bracketPublished,
+              showSchedule: division.showSchedule,
             }}
             pools={division.pools}
             registrations={division.registrations}
             games={division.games}
             isAdmin={isAdmin}
+            poolTiebreakerOrder={division.tournament.poolTiebreakerOrder}
+            hideSchedule={division.tournament.hideSchedule}
+            scheduleNotesWhenShown={division.tournament.scheduleNotesWhenShown}
+            scheduleNotesWhenHidden={division.tournament.scheduleNotesWhenHidden}
           />
         </Suspense>
       </section>

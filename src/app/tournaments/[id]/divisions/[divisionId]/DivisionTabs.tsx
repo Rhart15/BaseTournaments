@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import BracketTree, { type BracketGameNode } from "@/components/BracketTree";
+import { rankTeamsByTiebreakers, type TiebreakerGame, type TiebreakerRule } from "@/lib/tiebreakers";
 
 type TeamRef = { id: string; teamName: string } | null;
 
@@ -43,23 +44,49 @@ export default function DivisionTabs({
   registrations,
   games,
   isAdmin,
+  poolTiebreakerOrder,
+  hideSchedule,
+  scheduleNotesWhenShown,
+  scheduleNotesWhenHidden,
 }: {
-  division: { id: string; label: string; bracketPublished: boolean };
+  division: { id: string; label: string; bracketPublished: boolean; showSchedule: boolean };
   pools: { id: string; label: string }[];
   registrations: RegistrationRow[];
   games: GameRow[];
   isAdmin: boolean;
+  poolTiebreakerOrder: TiebreakerRule[];
+  hideSchedule: boolean;
+  scheduleNotesWhenShown: string | null;
+  scheduleNotesWhenHidden: string | null;
 }) {
+  // rankTeamsByTiebreakers wants flat homeTeamId/awayTeamId, not GameRow's
+  // nested homeTeam/awayTeam refs.
+  const finalPoolGames = useMemo(
+    () =>
+      games
+        .filter((g) => g.stage === "POOL" && g.status === "FINAL")
+        .map((g) => ({
+          homeTeamId: g.homeTeam?.id ?? null,
+          awayTeamId: g.awayTeam?.id ?? null,
+          homeScore: g.homeScore,
+          awayScore: g.awayScore,
+          status: g.status,
+        })),
+    [games]
+  );
+  const scheduleTabVisible = division.showSchedule;
+  const visibleTabs = TABS.filter((t) => t !== "Schedule" || scheduleTabVisible);
+
   const searchParams = useSearchParams();
-  const initialTab = TABS.find(
+  const initialTab = visibleTabs.find(
     (t) => t.toLowerCase() === searchParams.get("tab")?.toLowerCase()
   );
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? "Schedule");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab ?? visibleTabs[0] ?? "Standings");
 
   return (
     <div>
       <div className="flex gap-2 border-b border-steel/20">
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -75,9 +102,31 @@ export default function DivisionTabs({
       </div>
 
       <div className="mt-6">
-        {activeTab === "Schedule" && <ScheduleView pools={pools} games={games} />}
+        {activeTab === "Schedule" && (
+          hideSchedule ? (
+            scheduleNotesWhenHidden && (
+              <p className="rounded-sm border border-steel/20 bg-cream/50 p-4 text-sm text-ink/70">
+                {scheduleNotesWhenHidden}
+              </p>
+            )
+          ) : (
+            <>
+              {scheduleNotesWhenShown && (
+                <p className="mb-4 rounded-sm border border-steel/20 bg-cream/50 p-4 text-sm text-ink/70">
+                  {scheduleNotesWhenShown}
+                </p>
+              )}
+              <ScheduleView pools={pools} games={games} />
+            </>
+          )
+        )}
         {activeTab === "Standings" && (
-          <StandingsView pools={pools} registrations={registrations} />
+          <StandingsView
+            pools={pools}
+            registrations={registrations}
+            poolGames={finalPoolGames}
+            tiebreakerOrder={poolTiebreakerOrder}
+          />
         )}
         {activeTab === "Results" && (
           <ResultsView pools={pools} registrations={registrations} games={games} />
@@ -198,20 +247,16 @@ function ScheduleView({
 
 // ---------- Standings ----------
 
-function rankTeams<T extends { poolWins: number; poolLosses: number; runsFor: number; runsAgainst: number }>(
-  teams: T[]
-): T[] {
-  return [...teams].sort((a, b) => {
-    const pctA = a.poolWins / Math.max(a.poolWins + a.poolLosses, 1);
-    const pctB = b.poolWins / Math.max(b.poolWins + b.poolLosses, 1);
-    if (pctB !== pctA) return pctB - pctA;
-    const diffA = a.runsFor - a.runsAgainst;
-    const diffB = b.runsFor - b.runsAgainst;
-    return diffB - diffA;
-  });
-}
-
-function StandingsTable({ teams }: { teams: RegistrationRow[] }) {
+function StandingsTable({
+  teams,
+  poolGames,
+  tiebreakerOrder,
+}: {
+  teams: RegistrationRow[];
+  poolGames: TiebreakerGame[];
+  tiebreakerOrder: TiebreakerRule[];
+}) {
+  const ranked = rankTeamsByTiebreakers(teams, poolGames, tiebreakerOrder);
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
@@ -225,7 +270,7 @@ function StandingsTable({ teams }: { teams: RegistrationRow[] }) {
         </tr>
       </thead>
       <tbody>
-        {rankTeams(teams).map((t) => (
+        {ranked.map((t) => (
           <tr key={t.id} className="border-b border-steel/15">
             <td className="py-2">{t.teamName}</td>
             <td>{t.poolWins}</td>
@@ -250,9 +295,13 @@ function StandingsTable({ teams }: { teams: RegistrationRow[] }) {
 function StandingsView({
   pools,
   registrations,
+  poolGames,
+  tiebreakerOrder,
 }: {
   pools: { id: string; label: string }[];
   registrations: RegistrationRow[];
+  poolGames: TiebreakerGame[];
+  tiebreakerOrder: TiebreakerRule[];
 }) {
   const [subTab, setSubTab] = useState<"Pool" | "Division" | "Overall">("Pool");
 
@@ -282,6 +331,8 @@ function StandingsView({
                 </h3>
                 <StandingsTable
                   teams={registrations.filter((r) => r.poolId === pool.id)}
+                  poolGames={poolGames}
+                  tiebreakerOrder={tiebreakerOrder}
                 />
               </div>
             ))}
@@ -291,7 +342,7 @@ function StandingsView({
         ))}
 
       {(subTab === "Division" || subTab === "Overall") && (
-        <StandingsTable teams={registrations} />
+        <StandingsTable teams={registrations} poolGames={poolGames} tiebreakerOrder={tiebreakerOrder} />
       )}
     </div>
   );

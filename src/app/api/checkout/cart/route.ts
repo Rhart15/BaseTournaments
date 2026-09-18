@@ -5,7 +5,13 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 import { resolveTournamentPayout, PLATFORM_FEE_CENTS } from "@/lib/connect";
-import { resolveDiscount, recordDiscountCodeUse } from "@/lib/pricing";
+import {
+  resolveDiscount,
+  recordDiscountCodeUse,
+  computeSalesTaxCents,
+  computeProcessingFeeCents,
+} from "@/lib/pricing";
+import { checkDivisionCapacity } from "@/lib/divisionCapacity";
 
 const cartSchema = z.object({
   items: z
@@ -42,6 +48,14 @@ export async function POST(req: NextRequest) {
   });
   const tournamentById = new Map(tournaments.map((t) => [t.id, t]));
 
+  // Per-item division-capacity outcome, aligned by index with `items` --
+  // consumed in the creation loop below. `claimedByDivision` tracks seats
+  // already spoken for by an earlier item in this same cart targeting the
+  // same division, so two teams for a division with one spot left don't
+  // both see it as available.
+  const willWaitlist: boolean[] = [];
+  const claimedByDivision = new Map<string, number>();
+
   for (const item of items) {
     const tournament = tournamentById.get(item.tournamentId);
     if (!tournament) {
@@ -58,6 +72,19 @@ export async function POST(req: NextRequest) {
         { error: `${tournament.name} is full -- remove it from your cart to continue.` },
         { status: 409 }
       );
+    }
+
+    const capacity = await checkDivisionCapacity(
+      item.tournamentId,
+      item.divisionId,
+      claimedByDivision.get(item.divisionId) ?? 0
+    );
+    if (!capacity.ok) {
+      return NextResponse.json({ error: capacity.error }, { status: capacity.httpStatus });
+    }
+    willWaitlist.push(capacity.waitlist);
+    if (!capacity.waitlist) {
+      claimedByDivision.set(item.divisionId, (claimedByDivision.get(item.divisionId) ?? 0) + 1);
     }
   }
 
@@ -124,9 +151,36 @@ export async function POST(req: NextRequest) {
   const registrationIds: string[] = [];
   let discountCodeIdUsed: string | null = null;
   let totalChargeCents = 0;
+  // Counts teams actually being charged (entry fee > 0) -- separate from
+  // lineItems.length, since a tax line item added per team below would
+  // otherwise inflate the per-team platform fee calculation.
+  let chargedTeamCount = 0;
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     const tournament = tournamentById.get(item.tournamentId)!;
+
+    // Waitlisted -- park it with no charge and no discount-code
+    // consumption, same reasoning as the single-item checkout routes.
+    if (willWaitlist[i]) {
+      const registration = await prisma.registration.create({
+        data: {
+          tournamentId: item.tournamentId,
+          divisionId: item.divisionId,
+          teamName: item.teamName,
+          coachName,
+          coachEmail,
+          coachPhone,
+          teamId: ownTeamId,
+          status: "WAITLISTED",
+          waitlistedAt: new Date(),
+          orderGroupId,
+        },
+      });
+      registrationIds.push(registration.id);
+      continue;
+    }
+
     const discount = await resolveDiscount({
       entryFeeCents: tournament.entryFeeCents,
       codeInput: discountCode,
@@ -138,6 +192,8 @@ export async function POST(req: NextRequest) {
     }
     if (discount.discountCodeId) discountCodeIdUsed = discount.discountCodeId;
     const chargeCents = Math.max(0, tournament.entryFeeCents - discount.discountCents);
+    const taxCents = computeSalesTaxCents(chargeCents, tournament.salesTaxOverridePercent);
+    const feeCents = computeProcessingFeeCents(chargeCents + taxCents, tournament.disableProcessingFee);
 
     const registration = await prisma.registration.create({
       data: {
@@ -151,6 +207,8 @@ export async function POST(req: NextRequest) {
         teamId: ownTeamId,
         discountCodeId: discount.discountCodeId,
         discountAmountCents: discount.discountCents,
+        salesTaxCents: taxCents,
+        processingFeeCents: feeCents,
         orderGroupId,
       },
     });
@@ -158,6 +216,7 @@ export async function POST(req: NextRequest) {
 
     if (chargeCents > 0) {
       totalChargeCents += chargeCents;
+      chargedTeamCount += 1;
       lineItems.push({
         price_data: {
           currency: "usd",
@@ -168,14 +227,40 @@ export async function POST(req: NextRequest) {
         },
         quantity: 1,
       });
+      if (taxCents > 0) {
+        lineItems.push({
+          price_data: {
+            currency: "usd",
+            unit_amount: taxCents,
+            product_data: {
+              name: `${tournament.name} — ${item.teamName} sales tax`,
+            },
+          },
+          quantity: 1,
+        });
+      }
+      if (feeCents > 0) {
+        lineItems.push({
+          price_data: {
+            currency: "usd",
+            unit_amount: feeCents,
+            product_data: {
+              name: `${tournament.name} — ${item.teamName} processing fee`,
+            },
+          },
+          quantity: 1,
+        });
+      }
     }
   }
 
-  // Every item in the cart was fully covered by a discount code -- confirm
-  // the whole order directly, same as a free single-item registration.
+  // Every non-waitlisted item in the cart was fully covered by a discount
+  // code -- confirm those directly, same as a free single-item
+  // registration. Scoped to PENDING so a WAITLISTED item created above in
+  // the same order group isn't swept up and marked paid.
   if (lineItems.length === 0) {
     await prisma.registration.updateMany({
-      where: { orderGroupId },
+      where: { orderGroupId, status: "PENDING" },
       data: { status: "PAID", paidAt: new Date() },
     });
     await recordDiscountCodeUse(discountCodeIdUsed);
@@ -183,9 +268,12 @@ export async function POST(req: NextRequest) {
   }
 
   // One flat platform fee per team actually being charged, capped so it
-  // can never exceed the order total.
+  // can never exceed the entry-fee total. Based on chargedTeamCount, not
+  // lineItems.length -- a tax line item per team would otherwise inflate
+  // this. Sales tax itself is the organizer's to remit, not BASE's, so it
+  // plays no part in the platform fee either way.
   const applicationFeeCents = Math.min(
-    PLATFORM_FEE_CENTS * lineItems.length,
+    PLATFORM_FEE_CENTS * chargedTeamCount,
     totalChargeCents
   );
 

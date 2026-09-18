@@ -37,6 +37,8 @@ export default async function TournamentRegistrationsPage({
     const charged = chargedCentsFor({
       isVipComp: r.isVipComp,
       discountAmountCents: r.discountAmountCents,
+      salesTaxCents: r.salesTaxCents,
+      processingFeeCents: r.processingFeeCents,
       tournament: { entryFeeCents: tournament.entryFeeCents },
       installments: r.installments,
     });

@@ -39,7 +39,7 @@ export default async function TournamentsView({
   params: Params;
 }) {
   const tournaments = await prisma.tournament.findMany({
-    where: lockedSport ? { sport: lockedSport } : undefined,
+    where: lockedSport ? { sport: lockedSport, status: "PUBLISHED" } : { status: "PUBLISHED" },
     orderBy: { startDate: "asc" },
     include: { venue: true, registrations: true, divisions: true },
   });

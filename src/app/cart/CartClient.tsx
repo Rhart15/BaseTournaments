@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartContext";
+import { computeSalesTaxCents, computeProcessingFeeCents } from "@/lib/checkoutMath";
 
 export default function CartClient() {
   const router = useRouter();
@@ -15,7 +16,17 @@ export default function CartClient() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalCents = items.reduce((sum, i) => sum + i.entryFeeCents, 0);
+  // Same reasoning as RegisterForm's summary: before any discount, using
+  // the exact math checkout actually applies (see /lib/checkoutMath).
+  const itemBreakdowns = items.map((i) => {
+    const taxCents = computeSalesTaxCents(i.entryFeeCents, i.salesTaxOverridePercent);
+    const feeCents = computeProcessingFeeCents(i.entryFeeCents + taxCents, i.disableProcessingFee);
+    return { ...i, taxCents, feeCents, itemTotalCents: i.entryFeeCents + taxCents + feeCents };
+  });
+  const entryFeeCents = items.reduce((sum, i) => sum + i.entryFeeCents, 0);
+  const taxCents = itemBreakdowns.reduce((sum, i) => sum + i.taxCents, 0);
+  const feeCents = itemBreakdowns.reduce((sum, i) => sum + i.feeCents, 0);
+  const totalCents = entryFeeCents + taxCents + feeCents;
 
   async function handleCheckout(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -75,7 +86,7 @@ export default function CartClient() {
   return (
     <div>
       <div className="space-y-3">
-        {items.map((item) => (
+        {itemBreakdowns.map((item) => (
           <div
             key={item.key}
             className="flex items-center justify-between rounded-sm border border-steel/20 bg-white p-4"
@@ -85,10 +96,17 @@ export default function CartClient() {
               <p className="text-sm text-ink/60">
                 {item.tournamentName} — {item.divisionLabel}
               </p>
+              {(item.taxCents > 0 || item.feeCents > 0) && (
+                <p className="text-xs text-ink/50">
+                  ${(item.entryFeeCents / 100).toFixed(2)} entry
+                  {item.taxCents > 0 && ` + $${(item.taxCents / 100).toFixed(2)} tax`}
+                  {item.feeCents > 0 && ` + $${(item.feeCents / 100).toFixed(2)} fee`}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <p className="font-semibold">
-                ${(item.entryFeeCents / 100).toFixed(2)}
+                ${(item.itemTotalCents / 100).toFixed(2)}
               </p>
               <button
                 onClick={() => removeItem(item.key)}
@@ -101,13 +119,34 @@ export default function CartClient() {
         ))}
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t border-steel/20 pt-4">
-        <span className="font-semibold uppercase tracking-wide text-ink/60">
-          Total
-        </span>
-        <span className="text-xl font-bold">
-          ${(totalCents / 100).toFixed(2)}
-        </span>
+      <div className="mt-4 space-y-1 border-t border-steel/20 pt-4">
+        <div className="flex items-center justify-between text-sm text-ink/60">
+          <span>Entry fees</span>
+          <span>${(entryFeeCents / 100).toFixed(2)}</span>
+        </div>
+        {taxCents > 0 && (
+          <div className="flex items-center justify-between text-sm text-ink/60">
+            <span>Sales tax</span>
+            <span>${(taxCents / 100).toFixed(2)}</span>
+          </div>
+        )}
+        {feeCents > 0 && (
+          <div className="flex items-center justify-between text-sm text-ink/60">
+            <span>Processing fee</span>
+            <span>${(feeCents / 100).toFixed(2)}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <span className="font-semibold uppercase tracking-wide text-ink/60">
+            Estimated total
+          </span>
+          <span className="text-xl font-bold">
+            ${(totalCents / 100).toFixed(2)}
+          </span>
+        </div>
+        <p className="text-xs text-ink/50">
+          A discount code or multi-team discount, if any, is applied to entry fees at checkout.
+        </p>
       </div>
 
       <form onSubmit={handleCheckout} className="mt-8 space-y-4">

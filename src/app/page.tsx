@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const upcoming = await prisma.tournament.findMany({
-    where: { startDate: { gte: new Date() } },
+    where: { startDate: { gte: new Date() }, status: "PUBLISHED" },
     orderBy: { startDate: "asc" },
     take: 4,
     include: { divisions: true },

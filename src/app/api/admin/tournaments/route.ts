@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { guardAdmin, isLeadAdmin } from "@/lib/adminAuth";
 import { prisma } from "@/lib/db";
+import { buildEventSlugBase, ensureUniqueSlug, slugify } from "@/lib/eventSlug";
 
 export async function POST(req: NextRequest) {
   const g = await guardAdmin();
@@ -20,6 +21,22 @@ export async function POST(req: NextRequest) {
     description,
     divisionLabels,
     ownerId: requestedOwnerId,
+    // --- Event wizard: Details ---
+    season,
+    eventType,
+    entryType,
+    status,
+    featured,
+    dailyStartTime,
+    dailyEndTime,
+    registrationOpensAt,
+    registrationClosesAt,
+    registrationStatus,
+    address,
+    displayLocation,
+    slug: requestedSlug,
+    showFlyerInsteadOfLogo,
+    staffTags,
   } = body;
 
   if (!name || !sport || !startDate || !endDate || !city || !teamCap) {
@@ -50,6 +67,16 @@ export async function POST(req: NextRequest) {
     ownerId = requestedOwnerId;
   }
 
+  const slugBase = requestedSlug
+    ? slugify(String(requestedSlug))
+    : buildEventSlugBase({ name, city, startDate: new Date(startDate) });
+  const slug = await ensureUniqueSlug(prisma, slugBase);
+
+  const tags: string[] = (staffTags || "")
+    .split(",")
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+
   const tournament = await prisma.tournament.create({
     data: {
       name,
@@ -62,6 +89,21 @@ export async function POST(req: NextRequest) {
       teamCap: Number(teamCap),
       description: description || null,
       ownerId,
+      season: season || null,
+      ...(eventType !== undefined && { eventType }),
+      ...(entryType !== undefined && { entryType }),
+      ...(status !== undefined && { status }),
+      ...(featured !== undefined && { featured: Boolean(featured) }),
+      dailyStartTime: dailyStartTime || null,
+      dailyEndTime: dailyEndTime || null,
+      registrationOpensAt: registrationOpensAt ? new Date(registrationOpensAt) : null,
+      registrationClosesAt: registrationClosesAt ? new Date(registrationClosesAt) : null,
+      ...(registrationStatus !== undefined && { registrationStatus }),
+      address: address || null,
+      displayLocation: displayLocation || null,
+      slug,
+      showFlyerInsteadOfLogo: Boolean(showFlyerInsteadOfLogo),
+      staffTags: tags,
     },
   });
 

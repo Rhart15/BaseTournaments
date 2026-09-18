@@ -19,6 +19,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       city: true,
       state: true,
       description: true,
+      status: true,
       flyerUrl: true,
       entryFeeCents: true,
       teamCap: true,
@@ -31,7 +32,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     },
   });
 
-  if (!tournament) {
+  if (!tournament || tournament.status !== "PUBLISHED") {
     return NextResponse.json({ error: "Tournament not found." }, { status: 404 });
   }
 

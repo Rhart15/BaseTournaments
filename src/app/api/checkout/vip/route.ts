@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import { checkDivisionCapacity } from "@/lib/divisionCapacity";
 
 const vipRegisterSchema = z.object({
   tournamentId: z.string(),
@@ -60,6 +61,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const capacity = await checkDivisionCapacity(tournamentId, divisionId);
+  if (!capacity.ok) {
+    return NextResponse.json({ error: capacity.error }, { status: capacity.httpStatus });
+  }
+
   const authSession = await auth();
   let ownTeamId: string | null = null;
   if (authSession?.user?.id) {
@@ -70,6 +76,8 @@ export async function POST(req: NextRequest) {
     ownTeamId = ownTeam?.id ?? null;
   }
 
+  // A VIP code still respects division capacity/waitlist like every other
+  // checkout path -- no bypass, by explicit decision.
   const registration = await prisma.registration.create({
     data: {
       tournamentId,
@@ -79,11 +87,15 @@ export async function POST(req: NextRequest) {
       coachEmail,
       coachPhone,
       teamId: ownTeamId,
-      status: "PAID",
-      paidAt: new Date(),
       isVipComp: true,
+      ...(capacity.waitlist
+        ? { status: "WAITLISTED", waitlistedAt: new Date() }
+        : { status: "PAID", paidAt: new Date() }),
     },
   });
 
-  return NextResponse.json({ registrationId: registration.id });
+  return NextResponse.json({
+    registrationId: registration.id,
+    ...(capacity.waitlist ? { waitlisted: true } : {}),
+  });
 }

@@ -136,10 +136,18 @@ async function collectCharges(
   return { charges, problems };
 }
 
-/** What was actually charged for this registration, per our own records. */
+/**
+ * What was actually charged for this registration, per our own records.
+ * The installment branch doesn't need separate tax/fee terms -- any sales
+ * tax and processing fee were baked into the installment split before the
+ * total was divided (see /api/checkout/plan), so each PAID/REFUNDED
+ * installment's amountCents already reflects its share of both.
+ */
 export function chargedCentsFor(reg: {
   isVipComp: boolean;
   discountAmountCents: number;
+  salesTaxCents: number;
+  processingFeeCents: number;
   tournament: { entryFeeCents: number };
   installments: { status: string; amountCents: number }[];
 }): number {
@@ -148,7 +156,10 @@ export function chargedCentsFor(reg: {
       .filter((i) => i.status === "PAID" || i.status === "REFUNDED")
       .reduce((sum, i) => sum + i.amountCents, 0);
   }
-  return Math.max(0, reg.tournament.entryFeeCents - reg.discountAmountCents);
+  return Math.max(
+    0,
+    reg.tournament.entryFeeCents - reg.discountAmountCents + reg.salesTaxCents + reg.processingFeeCents
+  );
 }
 
 const EMPTY = {

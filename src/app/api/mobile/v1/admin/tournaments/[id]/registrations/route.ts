@@ -31,6 +31,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           status: true,
           isVipComp: true,
           discountAmountCents: true,
+          salesTaxCents: true,
+          processingFeeCents: true,
           refundedAmountCents: true,
           rosterApprovalStatus: true,
           division: { select: { label: true } },
@@ -47,6 +49,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const charged = chargedCentsFor({
       isVipComp: r.isVipComp,
       discountAmountCents: r.discountAmountCents,
+      salesTaxCents: r.salesTaxCents,
+      processingFeeCents: r.processingFeeCents,
       tournament: { entryFeeCents: tournament.entryFeeCents },
       installments: r.installments,
     });
